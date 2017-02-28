@@ -8,12 +8,12 @@ from spksrc.search_update import SearchUpdate
 
 
 class MainApp(object):
-    
+
     def __init__(self):
         self._root = None
         self._package = None
         self._verbose = False
-        
+
     def help(self):
         print("""
 Script to gather search update for spksrc package in cross/ and native/.
@@ -35,7 +35,7 @@ Options:
         check = check & os.path.isdir(self._root + 'native')
         check = check & os.path.isdir(self._root + 'spk')
         check = check & os.path.isdir(self._root + 'toolchains')
-        
+
         return check;
 
 
@@ -46,7 +46,7 @@ Options:
             self.help()
             print(e)
             sys.exit(2)
-            
+
         for opt, arg in opts:
             if opt == '-h':
                 self.help()
@@ -62,20 +62,21 @@ Options:
 
     def find_makefile(self, path):
         result = []
+        dirname = os.path.basename(path)
         for file in os.listdir(path):
-            makefile = path + os.path.sep + file + os.path.sep + 'Makefile'
+            makefile = os.path.join(path, file, 'Makefile')
             if os.path.exists(makefile):
-                result.append(makefile)
-                
+                result.append([dirname + os.path.sep + file, makefile])
+
         return result
-    
+
         pass
 
 
-    def check_update_makefile(self, path):
-        package = SearchUpdate(path)
-        package.search()
-    
+    def check_update_makefile(self, package, path):
+        package = SearchUpdate(package, path)
+        package.search_updates()
+
 
     def main(self):
         """
@@ -83,33 +84,33 @@ Options:
         """
 
         self.read_args()
-        
+
         if self._root is None or len(self._root) == 0:
             self.help()
             print("<root> is required")
             sys.exit(2)
-        
+
         if self.check_spksc_dir() == False:
             self.help()
             print("<root> have to be a root directory of spksrc")
             sys.exit(2)
-            
-            
+
+
         makefiles = None
         if self._package is not None:
             if not os.path.exists(self._root + self._package + os.path.sep + 'Makefile'):
                 self.help()
                 print("<package> " + self._package + " doesn't exist or it is not a valid spksrc package")
                 sys.exit(2)
-            
-            makefiles = [self._root + self._package + os.path.sep + 'Makefile']
+
+            makefiles = [[self._package, os.path.join(self._root, self._package, 'Makefile')]]
         else:
             makefiles = self.find_makefile(self._root + 'cross') + self.find_makefile(self._root + 'native')
 
-            
+
         for makefile in makefiles:
-            self.check_update_makefile(makefile)
-        
+            self.check_update_makefile(makefile[0], makefile[1])
+
         sys.exit()
 
 
