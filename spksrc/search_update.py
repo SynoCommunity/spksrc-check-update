@@ -2,12 +2,22 @@
 import sys
 import os
 import shutil
+import re
+import time
+import copy
+import collections
+
 import git as git
 import svn as svn
 import svn.remote
 import svn.local
+import requests
+from ftplib import FTP
 
-import pprint
+from urllib.parse import urlparse
+from urllib.parse import ParseResult
+from pkg_resources import parse_version
+from bs4 import BeautifulSoup
 
 from makefile_parser.makefile_parser import MakefileParser
 
@@ -15,11 +25,14 @@ class SearchUpdate(object):
 
     work_dir = 'work'
 
+    delay_cache = 24 * 3600
+
     def __init__(self, package, path):
         self._package = package
         self._path = path
         self._work_dir = os.path.join(SearchUpdate.work_dir, package)
 
+        print("\n")
         self.log("Parse Makefile")
         self._parser = MakefileParser()
         self._parser.parse_file(path)
@@ -29,15 +42,23 @@ class SearchUpdate(object):
 
 
     def _generate_regex_version(self, version):
-        prefix_parts = version.split('-')
-        #regex_version =
-        #local regexVersionPackageVersion=$(echo $version | sed -e 's/\./\\./g' -e 's/[0-9]\+/(\\\\d+)/g' -e 's/-\w\+$/(-[\\\\w]+)?/')
+
+        tmp_parser = copy.copy(self._parser)
+        tmp_parser.set_var_values('PKG_VERS', 'XXXVERXXX')
+        tmp_parser.evaluate_var('PKG_DIST_NAME')
+        filename = tmp_parser.get_var_values('PKG_DIST_NAME')
+
+        regex_version = '([0-9]+((?P<sep>[._-])([0-9a-zA-Z]+))*(-\w+)*)'
+        regex_filename = '(' + re.escape(filename[0]).replace('XXXVERXXX', regex_version) + ')'
+        regex_filename = re.sub('(\\\.tar\\\.bz2|\\\.tar\\\.gz|\\\.tar\\\.xz|\\\.zip|\\\.rar|\\\.tgz)', '\.(tar\.bz2|tar\.gz|tar\.xz|zip|rar|tgz)', regex_filename)
+
+        return re.compile(regex_filename)
 
 
     def get_url(self):
-        url = self._parser.get_var('PKG_DIST_SITE')
+        url = self._parser.get_var_values('PKG_DIST_SITE')
         if url is not None:
-            url_file = self._parser.get_var('PKG_DIST_NAME')
+            url_file = self._parser.get_var_values('PKG_DIST_NAME')
             if url_file is not None:
                 url[0] += '/' + url_file[0]
 
@@ -47,15 +68,15 @@ class SearchUpdate(object):
 
 
     def get_version(self):
-        version = self._parser.get_var('PKG_VERS')
+        version = self._parser.get_var_values('PKG_VERS')
         if version is None:
-            version = self._parser.get_var('PKG_VERS_MAJOR')
+            version = self._parser.get_var_values('PKG_VERS_MAJOR')
 
             if version is not None:
-                version_minor = self._parser.get_var('PKG_VERS_MINOR')
+                version_minor = self._parser.get_var_values('PKG_VERS_MINOR')
                 if version_minor is not None:
                     version[0] += '.' + version_minor[0]
-                    version_patch = self._parser.get_var('PKG_VERS_PATCH')
+                    version_patch = self._parser.get_var_values('PKG_VERS_PATCH')
                     if version_patch is not None:
                         version[0] += '.' + version_patch[0]
                 version = version[0]
@@ -65,11 +86,14 @@ class SearchUpdate(object):
         return version
 
 
+
     def _search_updates_git(self):
         url = self.get_url()
 
         git_path = os.path.join(self._work_dir, 'git')
-        git_hash = self._parser.get_var('PKG_GIT_HASH', ['master'])[0]
+        git_hash = self._parser.get_var_values('PKG_GIT_HASH', ['master'])[0]
+
+        self.log("Current git hash: " + git_hash)
 
         git_is_cloned = os.path.join(self._work_dir, '.git_clone')
         if not os.path.exists(git_is_cloned):
@@ -80,7 +104,7 @@ class SearchUpdate(object):
             try:
                 git.Repo.clone_from(url, git_path)
             except git.GitCommandError as exception:
-                print("[" + self._package + "] Error to clone git")
+                self.log("Error to clone git")
                 return
             open(git_is_cloned, 'w').close()
             self.log("Repository cloned")
@@ -116,13 +140,15 @@ class SearchUpdate(object):
         url = self.get_url()
 
         svn_path = os.path.join(self._work_dir, 'svn')
-        svn_rev = self._parser.get_var('PKG_SVN_REV')
+        svn_rev = self._parser.get_var_values('PKG_SVN_REV')
         svn_rev_next = 'HEAD'
         if svn_rev is not None:
             svn_rev = svn_rev[0]
             svn_rev_next = int(svn_rev) + 1
         else:
             svn_rev = 'HEAD'
+
+        self.log("Current svn revision: " + svn_rev)
 
 
         svn_is_checkout = os.path.join(self._work_dir, '.svn_checkout')
@@ -134,7 +160,7 @@ class SearchUpdate(object):
             try:
                 repo = svn.remote.RemoteClient(url)
                 repo.checkout(svn_path)
-            except svn.common.SvnException as exception:
+            except:
                 self.log("Error to checkout svn")
                 return
             open(svn_is_checkout, 'w').close()
@@ -156,29 +182,238 @@ class SearchUpdate(object):
         return new_versions
 
 
-    def _search_updates_file(self):
+    def _search_updates_ftp(self):
         url = self.get_url()
         version = self.get_version()
+        version_p = parse_version(version)
 
-        print('url')
-        print(url)
+        self.log("Current version: " + version)
 
+        url_splitted = url.split('/')
+        filename = url_splitted[-1]
+        url_parent = '/'.join(url_splitted[:-1])
+
+        self.log("Download ftp list from parent url: " + url_parent)
+
+        url_parent_p = urlparse(url_parent)
+
+
+        path_file_cached = os.path.join(self._work_dir, 'list.txt')
+
+        download = True
+        if os.path.exists(path_file_cached):
+            mtime = os.path.getmtime(path_file_cached)
+            delay_cache = SearchUpdate.delay_cache
+            if (mtime + delay_cache) > time.time():
+                download = False
+
+        files = []
+        if download:
+            try:
+                ftp = FTP(url_parent_p.netloc)
+                ftp.login()
+                ftp.cwd(url_parent_p.path)
+                files = ftp.nlst()
+            except:
+                self.log('Error to connect on FTP')
+                return None
+
+            file = open(path_file_cached, 'w')
+            file.write('\n'.join(files))
+            file.close()
+
+        else:
+            self.log("Use cached file: " + path_file_cached)
+            file= open(path_file_cached, 'r')
+            files = file.readlines()
+            file.close()
+
+        regex_filename = self._generate_regex_version(version)
+
+        new_versions = {}
+        for filename in files:
+            match = regex_filename.search(filename.strip('\n'))
+            if match:
+                m = match.groups()
+                if parse_version(m[1]) > version_p:
+                    if m[1] not in new_versions:
+                        new_versions[ m[1] ] = {'version': m[1], 'extensions': [ m[-1] ]}
+                    elif m[-1] not in new_versions[ m[1] ]['extensions']:
+                        new_versions[ m[1] ]['extensions'].append(m[-1])
+
+        new_versions = collections.OrderedDict(sorted(new_versions.items(), key=lambda x: parse_version(x[0]), reverse=True))
+
+        return new_versions
+
+
+    def _get_parent_url_data(self, url, version):
+        url_p = urlparse(url)
+
+        path_splitted = url_p.path.split('/')
+        url_parent_base = url_p.scheme + '://' + url_p.netloc
+
+        # Get parent URL
+        if url_p.netloc == 'github.com':
+            if path_splitted[1] == 'downloads':
+                path_splitted.remove('downloads')
+                url_parent = url_parent_base + '/'.join(path_splitted[:-1]) + '/releases/'
+            else:
+                url_parent = url_parent_base + '/'.join(path_splitted[0:3]) + '/releases/'
+
+        elif url_p.netloc == 'downloads.sourceforge.net':
+
+            url_parent_base = url_p.scheme + '://sourceforge.net'
+
+            path_splitted = ['', 'projects'] + path_splitted[2:3] + ['files'] + path_splitted[3:]
+            if version in path_splitted:
+                path_splitted.remove(version)
+
+            url_parent = url_parent_base + '/'.join(path_splitted[:-1]) + '/'
+
+        else:
+            if version in path_splitted:
+                path_splitted.remove(version)
+
+            url_parent = url_parent_base + '/'.join(path_splitted[:-1]) + '/'
+
+
+        self.log("Download parent url page: " + url_parent)
+        req = requests.get(url_parent, allow_redirects=True)
+
+        text = ''
+        if req.status_code == requests.codes.ok:
+            text = req.text
+        else:
+            self.log('Error to download page: ' + str(req.status_code))
+            return None
+
+        # Text filter
+        if url_p.netloc == 'sourceforge.net':
+            soup = BeautifulSoup(text, "html5lib")
+            text = soup.find("div", {"id": "files"})
+            text = str(text)
+
+        return text
+
+
+    def _search_updates_http(self):
+        url = self.get_url()
+        version = self.get_version()
+        version_p = parse_version(version)
+
+        self.log("Current version: " + version)
+
+        url_splitted = url.split('/')
+        filename = url_splitted[-1]
+
+        path_file_cached = os.path.join(self._work_dir, 'list.html')
+        path_file_txt_cached = os.path.join(self._work_dir, 'list.txt')
+
+        download = True
+        if os.path.exists(path_file_cached):
+            mtime = os.path.getmtime(path_file_cached)
+            delay_cache = SearchUpdate.delay_cache
+            if (mtime + delay_cache) > time.time():
+                download = False
+
+        text = ''
+        if download:
+            text = self._get_parent_url_data(url, version)
+
+            if text and len(text) > 0:
+                file = open(path_file_cached, 'w')
+                file.write(text)
+                file.close()
+            else:
+                return None
+
+        else:
+            self.log("Use cached file: " + path_file_cached)
+            file= open(path_file_cached, 'r')
+            text = ''.join(file.readlines())
+            file.close()
+
+
+        self.log("Check for filename in parent page")
+
+        regex_filename = self._generate_regex_version(version)
+
+        matches = regex_filename.findall(text)
+
+        new_versions = {}
+        for m in matches:
+            if parse_version(m[1]) > version_p:
+                if m[1] not in new_versions:
+                    new_versions[ m[1] ] = {'version': m[1], 'extensions': [ m[-1] ]}
+                elif m[-1] not in new_versions[ m[1] ]['extensions']:
+                    new_versions[ m[1] ]['extensions'].append(m[-1])
+
+        if len(new_versions) == 0 and version in text:
+
+            def clean_html(html):
+                soup = BeautifulSoup(html, "html5lib")
+                for script in soup(["script", "style"]):
+                    script.extract()
+                text = soup.get_text()
+                # break into lines and remove leading and trailing space on each
+                lines = (line.strip() for line in text.splitlines())
+                # break multi-headlines into a line each
+                chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
+                # drop blank lines
+                text = '\n'.join(chunk for chunk in chunks if chunk)
+                return text
+
+            plain_text = clean_html(text)
+
+            file = open(path_file_txt_cached, 'w')
+            file.write(plain_text)
+            file.close()
+            self.log("Check for version in parent page")
+
+            regex_version = re.escape(version)
+            regex_version = re.sub('\-\w+', '\-\w+', regex_version)
+            regex_version = re.sub('[0-9]+', '[0-9]+', regex_version)
+            regex_version = '(' + regex_version + ')'
+
+            matches = re.findall(regex_version, plain_text)
+
+            for m in matches:
+                if m not in new_versions and parse_version(m) > version_p:
+                    new_versions[ m ] = {'version': m}
+
+        new_versions = collections.OrderedDict(sorted(new_versions.items(), key=lambda x: parse_version(x[0]), reverse=True))
+
+        return new_versions
+
+
+    def _search_updates_common(self):
+        url = self.get_url()
+
+        url_p = urlparse(url)
+
+        new_versions = []
+        if url_p.scheme == 'ftp':
+            new_versions = self._search_updates_ftp()
+        else:
+            new_versions = self._search_updates_http()
+
+        return new_versions
 
     def search_updates(self):
 
         if not os.path.exists(self._work_dir):
             os.makedirs(self._work_dir)
 
-        method = self._parser.get_var('PKG_DOWNLOAD_METHOD', ['file'])[0]
+        method = self._parser.get_var_values('PKG_DOWNLOAD_METHOD', ['common'])[0]
         func_name = '_search_updates_' + method
 
         try:
             func = getattr(self, func_name)
-            res = func()
-            pprint.pprint(res)
-            return res
-        except:
+            return func()
+        except Exception as e:
+            print(e)
             print('Method ' + func_name + ' has not found')
+            return None
 
 
 

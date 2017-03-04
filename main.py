@@ -3,6 +3,7 @@
 import sys
 import os
 import getopt
+import pprint
 from spksrc.search_update import SearchUpdate
 
 
@@ -68,14 +69,16 @@ Options:
             if os.path.exists(makefile):
                 result.append([dirname + os.path.sep + file, makefile])
 
-        return result
+        result.sort()
 
-        pass
+        return result
 
 
     def check_update_makefile(self, package, path):
         package = SearchUpdate(package, path)
-        package.search_updates()
+        new_versions = package.search_updates()
+        if new_versions:
+            pprint.pprint(new_versions)
 
 
     def main(self):
@@ -110,9 +113,6 @@ Options:
 
         for makefile in makefiles:
             self.check_update_makefile(makefile[0], makefile[1])
-
-        sys.exit()
-
 
 if __name__ == '__main__':
     app = MainApp()
