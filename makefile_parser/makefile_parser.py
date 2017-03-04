@@ -1,6 +1,5 @@
 
 import sys
-import pprint
 import json
 import copy
 import pyparsing as pp
@@ -9,6 +8,7 @@ class MakefileParser(object):
 
     def __init__(self):
         self._parser = self._get_parser()
+        self._vars_not_evaluate = {}
         self._vars = {}
 
 
@@ -38,36 +38,20 @@ class MakefileParser(object):
         return str_arr
 
 
-    def _evaluate_result(self, parse_result, to_parse = False):
-        str_ret = []
-        for res in parse_result:
+    def _call_value(self, arguments, re_evaluate_values):
+        if re_evaluate_values:
+           self.evaluate_var(first_arg)
 
-            if type(res) is pp.ParseResults:
-                str_to_add = self._evaluate_result(res, True)
-                str_ret.append(str_to_add)
-            else:
-                str_ret.append([res])
-
-        str_gen = self._generate_str_possibility(str_ret)
-        if to_parse is True:
-
-            new_arr = []
-            for s in str_gen:
-                new_arr += self.parse_call(s)
-            str_ret = new_arr
-        else:
-            str_ret = str_gen
-
-        return str_ret
+        return self._vars[ arguments ]
 
 
-    def _call_subst(self, arguments):
+    def _call_subst(self, arguments, re_evaluate_values):
         args = arguments.split(',')
 
         return args[2].replace(args[0], args[1])
 
 
-    def parse_call(self, arguments):
+    def parse_call(self, arguments, re_evaluate_values = False):
         arguments = arguments.strip()
 
         args = arguments.split(' ')
@@ -80,14 +64,40 @@ class MakefileParser(object):
             func_name = '_call_' + first_arg
             try:
                 func = getattr(self, func_name)
-                return [ func(' '.join(args)) ]
+                return [ func(' '.join(args), re_evaluate_values) ]
             except:
                 return ['']
         else:
             if first_arg in self._vars:
+                if re_evaluate_values:
+                   self.evaluate_var(first_arg)
+
                 return self._vars[ first_arg ]
 
         return ['']
+
+
+    def evaluate_result(self, parse_result, re_evaluate_values = False, to_parse = False):
+        str_ret = []
+        for res in parse_result:
+
+            if type(res) is pp.ParseResults:
+                str_to_add = self.evaluate_result(res, re_evaluate_values, True)
+                str_ret.append(str_to_add)
+            else:
+                str_ret.append([res])
+
+        str_gen = self._generate_str_possibility(str_ret)
+        if to_parse is True:
+
+            new_arr = []
+            for s in str_gen:
+                new_arr += self.parse_call(s, re_evaluate_values)
+            str_ret = new_arr
+        else:
+            str_ret = str_gen
+
+        return str_ret
 
 
     def _parse_line(self, line):
@@ -95,18 +105,18 @@ class MakefileParser(object):
 
         if len(result) > 0:
             if result[0]['var'] not in self._vars:
+                self._vars_not_evaluate[ result[0]['var'] ] = []
+                self._vars_not_evaluate[ result[0]['var'] ].append('')
                 self._vars[ result[0]['var'] ] = []
                 self._vars[ result[0]['var'] ].append('')
 
             if 'value' in result[0]:
                 if len(self._vars[ result[0]['var'] ]) > 0 and self._vars[ result[0]['var'] ][0] == '':
+                    self._vars_not_evaluate[ result[0]['var'] ].pop(0)
                     self._vars[ result[0]['var'] ].pop(0)
 
-                self._vars[ result[0]['var'] ] += self._evaluate_result(result[0]['value'])
-
-
-    def reset_vars(self):
-        self._vars = {}
+                self._vars_not_evaluate[ result[0]['var'] ].append(result[0]['value'])
+                self._vars[ result[0]['var'] ] += self.evaluate_result(result[0]['value'])
 
 
     def parse_file(self, file):
@@ -122,14 +132,48 @@ class MakefileParser(object):
             self._parse_line(line)
 
 
-    def get_var(self, var, default = None):
+    def del_vars_values(self):
+        self._vars = {}
+
+
+    def del_var_values(self, var):
+        if var in self._vars:
+            del self._vars[ var ]
+
+
+    def get_var_values(self, var, default = None):
         if var in self._vars:
             return copy.copy(self._vars[ var ])
 
         return default
 
+    def set_var_values(self, var, value, value_not_evaluate = None):
+        if not value_not_evaluate:
+            value_not_evaluate = value
+
+        if type(value) is not list:
+            value = [ value ]
+
+        if type(value_not_evaluate) is not list:
+            value_not_evaluate = [ value_not_evaluate ]
+
+        self._vars_not_evaluate[ var ] = value_not_evaluate
+        self._vars[ var ] = value
+
+    def evaluate_var(self, var):
+        if var in self._vars_not_evaluate:
+            self._vars[ var ] = []
+            for v in self._vars_not_evaluate[ var ]:
+                self._vars[ var ] += self.evaluate_result(v, True)
+
 
     def pprint_vars(self):
+        print("VARS_NOT_EVALUATE = ")
+        for k,l in self._vars_not_evaluate.items():
+            print("\t" + k + " = ")
+            for v in l:
+                print(l)
+
         print("VARS = ")
         for k,l in self._vars.items():
             print("\t" + k + " = ")
