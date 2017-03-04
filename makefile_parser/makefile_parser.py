@@ -2,7 +2,11 @@
 import sys
 import json
 import copy
+import logging
 import pyparsing as pp
+
+
+_LOGGER = logging.getLogger(__name__)
 
 class MakefileParser(object):
 
@@ -62,9 +66,16 @@ class MakefileParser(object):
 
         if len(args) > 0:
             func_name = '_call_' + first_arg
+            func_args = ' '.join(args)
+            _LOGGER.debug("parse_call: '%s' with args: %s" % (first_arg,func_args,))
             try:
                 func = getattr(self, func_name)
-                return [ func(' '.join(args), re_evaluate_values) ]
+                value = func(func_args, re_evaluate_values)
+                _LOGGER.debug("parse_call: return %s" % (value,))
+                if type(value) is list:
+                    return value
+
+                return [ value ]
             except:
                 return ['']
         else:
@@ -115,11 +126,13 @@ class MakefileParser(object):
                     self._vars_not_evaluate[ result[0]['var'] ].pop(0)
                     self._vars[ result[0]['var'] ].pop(0)
 
+                _LOGGER.debug("_parse_line: evalute var: %s" % (result[0]['var'],))
                 self._vars_not_evaluate[ result[0]['var'] ].append(result[0]['value'])
                 self._vars[ result[0]['var'] ] += self.evaluate_result(result[0]['value'])
 
 
     def parse_file(self, file):
+        _LOGGER.debug("parse_file: file: %s" % (file,))
         file = open(file, "r")
         for line in file:
             self._parse_line(line)
@@ -127,6 +140,7 @@ class MakefileParser(object):
 
 
     def parse_text(self, text):
+        _LOGGER.debug("parse_text: text: %s" % (text,))
         lines = text.split('\n')
         for line in lines:
             self._parse_line(line)
@@ -148,6 +162,7 @@ class MakefileParser(object):
         return default
 
     def set_var_values(self, var, value, value_not_evaluate = None):
+        _LOGGER.debug("set_var_values: var: %s, value: %s" % (var,value,))
         if not value_not_evaluate:
             value_not_evaluate = value
 
@@ -161,22 +176,9 @@ class MakefileParser(object):
         self._vars[ var ] = value
 
     def evaluate_var(self, var):
+        _LOGGER.debug("evaluate_var: var: %s" % (var,))
         if var in self._vars_not_evaluate:
             self._vars[ var ] = []
             for v in self._vars_not_evaluate[ var ]:
                 self._vars[ var ] += self.evaluate_result(v, True)
-
-
-    def pprint_vars(self):
-        print("VARS_NOT_EVALUATE = ")
-        for k,l in self._vars_not_evaluate.items():
-            print("\t" + k + " = ")
-            for v in l:
-                print(l)
-
-        print("VARS = ")
-        for k,l in self._vars.items():
-            print("\t" + k + " = ")
-            for v in l:
-                print("\t\t" + v)
 

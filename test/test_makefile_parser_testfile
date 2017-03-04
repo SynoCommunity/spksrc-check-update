@@ -12,6 +12,15 @@ NEW_VERS = 1.5.1
 NEW_VERS = 1.6.0
 NEW_DIST_NAME = $(PKG_NAME)_$(subst .,_,$(NEW_VERS)).$(PKG_EXT)
 
+VALUE=10
+TEST_CALL_VALUE=AA $(value VALUE)
+
+ASSIGN1 = 1
+ASSIGN2 += 2
+ASSIGN3 ?= 3
+ASSIGN4 := 4
+ASSIGN5 ::= 5
+
 HOMEPAGE = http://www.boost.org/
 COMMENT  = Boost provides free peer-reviewed portable C++ source libraries.
 LICENSE  = http://www.boost.org/LICENSE_1_0.txt
