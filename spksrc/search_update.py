@@ -261,7 +261,6 @@ class SearchUpdate(object):
                 url_parent = url_parent_base + '/'.join(path_splitted[0:3]) + '/releases/'
 
         elif url_p.netloc == 'downloads.sourceforge.net':
-
             url_parent_base = url_p.scheme + '://sourceforge.net'
 
             path_splitted = ['', 'projects'] + path_splitted[2:3] + ['files'] + path_splitted[3:]
@@ -269,6 +268,10 @@ class SearchUpdate(object):
                 path_splitted.remove(version)
 
             url_parent = url_parent_base + '/'.join(path_splitted[:-1]) + '/'
+
+
+        elif url_p.netloc == 'files.pythonhosted.org':
+            url_parent = 'https://pypi.python.org/pypi/' + path_splitted[-2] + '/'
 
         else:
             if version in path_splitted:
@@ -288,10 +291,24 @@ class SearchUpdate(object):
             return None
 
         # Text filter
+        text_filtered = ''
         if url_p.netloc == 'sourceforge.net':
             soup = BeautifulSoup(text, "html5lib")
-            text = soup.find("div", {"id": "files"})
-            text = str(text)
+            soup_find = soup.find("div", {"id": "files"})
+            if soup_find:
+                text_filtered += str(soup_find)
+        elif url_p.netloc == 'files.pythonhosted.org':
+            soup = BeautifulSoup(text, "html5lib")
+            soup_find = soup.find("table", {"id": "list"})
+            if soup_find:
+                text_filtered += str(soup_find)
+
+            soup_find = soup.find("ul", {"id": "nodot"})
+            if soup_find:
+                text_filtered += str(soup_find)
+
+        if len(text_filtered) > 0:
+            text = text_filtered
 
         return text
 
