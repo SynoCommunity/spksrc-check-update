@@ -5,7 +5,6 @@ import copy
 import logging
 import pyparsing as pp
 
-
 _LOGGER = logging.getLogger(__name__)
 
 class MakefileParser(object):

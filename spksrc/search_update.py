@@ -5,6 +5,7 @@ import shutil
 import re
 import time
 import copy
+import logging
 import collections
 
 import git as git
@@ -21,6 +22,8 @@ from bs4 import BeautifulSoup
 
 from makefile_parser.makefile_parser import MakefileParser
 
+_LOGGER = logging.getLogger(__name__)
+
 class SearchUpdate(object):
 
     work_dir = 'work'
@@ -28,17 +31,25 @@ class SearchUpdate(object):
     delay_cache = 24 * 3600
 
     def __init__(self, package, path):
+        self._use_cache = True
         self._package = package
         self._path = path
         self._work_dir = os.path.join(SearchUpdate.work_dir, package)
 
-        print("\n")
-        self.log("Parse Makefile")
+        _LOGGER.debug("__init__: path: %s" % (path,))
         self._parser = MakefileParser()
         self._parser.parse_file(path)
 
-    def log(self, message):
+    def print(self, message):
         print("[" + self._package + "] " + message)
+
+
+    def enable_cache(self):
+        self._use_cache = True
+
+
+    def disable_cache(self):
+        self._use_cache = False
 
 
     def _generate_regex_version(self, version):
@@ -51,7 +62,7 @@ class SearchUpdate(object):
         regex_version = '([0-9]+((?P<sep>[._-])([0-9a-zA-Z]+))*(-\w+)*)'
         regex_filename = '(' + re.escape(filename[0]).replace('XXXVERXXX', regex_version) + ')'
         regex_filename = re.sub('(\\\.tar\\\.bz2|\\\.tar\\\.gz|\\\.tar\\\.xz|\\\.tar\\\.bz2|\\\.zip|\\\.rar|\\\.tgz)', '\.(tar\.bz2|tar\.gz|tar\.xz|tar\.bz2|zip|rar|tgz)', regex_filename)
-        print(regex_filename)
+        _LOGGER.debug("_generate_regex_version: regex_filename: %s" % (regex_filename,))
 
         return re.compile(regex_filename)
 
@@ -94,24 +105,24 @@ class SearchUpdate(object):
         git_path = os.path.join(self._work_dir, 'git')
         git_hash = self._parser.get_var_values('PKG_GIT_HASH', ['master'])[0]
 
-        self.log("Current git hash: " + git_hash)
+        _LOGGER.info("Current git hash: %s" % (git_hash,))
 
         git_is_cloned = os.path.join(self._work_dir, '.git_clone')
         if not os.path.exists(git_is_cloned):
             if os.path.exists(git_path):
                 shutil.rmtree(git_path)
 
-            self.log("Clone repository: " + url)
+            self.print("Clone repository: " + url)
             try:
                 git.Repo.clone_from(url, git_path)
             except git.GitCommandError as exception:
-                self.log("Error to clone git")
+                self.print("Error to clone git")
                 return
             open(git_is_cloned, 'w').close()
-            self.log("Repository cloned")
+            self.print("Repository cloned")
 
 
-        self.log("Fetch and pull git")
+        self.print("Fetch and pull git")
         repo = git.Repo(git_path)
         for remote in repo.remotes:
             remote.fetch()
@@ -122,7 +133,7 @@ class SearchUpdate(object):
         tags = repo.tags
         if len(tags) > 0:
             # Has tag: List new tags
-            self.log("Has tags: Get new versions from tags")
+            self.print("Has tags: Get new versions from tags")
             tags.sort(key=lambda t: t.commit.committed_datetime)
             for c in repo.iter_commits(git_hash + '..HEAD'):
                 tag = next((tag for tag in repo.tags if tag.commit == c), None)
@@ -130,7 +141,7 @@ class SearchUpdate(object):
                     new_versions.append(str(tag))
         else:
             # No tags: list new commits
-            self.log("No tags: Get new versions from commits")
+            self.print("No tags: Get new versions from commits")
             for c in repo.iter_commits(git_hash + '..HEAD'):
                 new_versions.append(str(c))
 
@@ -149,7 +160,7 @@ class SearchUpdate(object):
         else:
             svn_rev = 'HEAD'
 
-        self.log("Current svn revision: " + svn_rev)
+        self.print("Current svn revision: " + svn_rev)
 
 
         svn_is_checkout = os.path.join(self._work_dir, '.svn_checkout')
@@ -157,25 +168,25 @@ class SearchUpdate(object):
             if os.path.exists(svn_path):
                 shutil.rmtree(svn_path)
 
-            self.log("Checkout repository: " + url)
+            self.print("Checkout repository: " + url)
             try:
                 repo = svn.remote.RemoteClient(url)
                 repo.checkout(svn_path)
             except:
-                self.log("Error to checkout svn")
+                self.print("Error to checkout svn")
                 return
             open(svn_is_checkout, 'w').close()
-            self.log("Repository checkout")
+            self.print("Repository checkout")
 
 
         repo = svn.local.LocalClient(svn_path)
 
-        self.log("Update svn")
+        self.print("Update svn")
         repo.update()
 
         new_versions = []
 
-        self.log("Get new revisions in /tags directory")
+        self.print("Get new revisions in /tags directory")
         tags_rev = repo.log_default(None, None, None, '^/tags', None, svn_rev_next, None)
         for rev in tags_rev:
             new_versions.insert(0, str(rev.revision))
@@ -188,21 +199,21 @@ class SearchUpdate(object):
         version = self.get_version()
         version_p = parse_version(version)
 
-        self.log("Current version: " + version)
+        self.print("Current version: " + version)
 
         url_splitted = url.split('/')
         filename = url_splitted[-1]
-        url_parent = '/'.join(url_splitted[:-1])
+        url_to_request = '/'.join(url_splitted[:-1])
 
-        self.log("Download ftp list from parent url: " + url_parent)
+        self.print("Download ftp list from parent url: " + url_to_request)
 
-        url_parent_p = urlparse(url_parent)
+        url_to_request_p = urlparse(url_to_request)
 
 
         path_file_cached = os.path.join(self._work_dir, 'list.txt')
 
         download = True
-        if os.path.exists(path_file_cached):
+        if self._use_cache == True and os.path.exists(path_file_cached):
             mtime = os.path.getmtime(path_file_cached)
             delay_cache = SearchUpdate.delay_cache
             if (mtime + delay_cache) > time.time():
@@ -211,12 +222,12 @@ class SearchUpdate(object):
         files = []
         if download:
             try:
-                ftp = FTP(url_parent_p.netloc)
+                ftp = FTP(url_to_request_p.netloc)
                 ftp.login()
-                ftp.cwd(url_parent_p.path)
+                ftp.cwd(url_to_request_p.path)
                 files = ftp.nlst()
             except:
-                self.log('Error to connect on FTP')
+                self.print('Error to connect on FTP')
                 return None
 
             file = open(path_file_cached, 'w')
@@ -224,7 +235,7 @@ class SearchUpdate(object):
             file.close()
 
         else:
-            self.log("Use cached file: " + path_file_cached)
+            self.print("Use cached file: " + path_file_cached)
             file= open(path_file_cached, 'r')
             files = file.readlines()
             file.close()
@@ -248,16 +259,14 @@ class SearchUpdate(object):
         return new_versions
 
 
-    def _get_parent_url_data(self, url, version, depth = 0):
+    def _get_url_data(self, url, depth = 0):
         url_p = urlparse(url)
 
         path_splitted = url_p.path.split('/')
-        url_parent_base = url_p.scheme + '://' + url_p.netloc
+        url_to_request_base = url_p.scheme + '://' + url_p.netloc
 
-        if depth > 0:
-            path_splitted = path_splitted[0:-depth]
-
-        # Get parent URL
+        # Get URL to request before remove depth path
+        url_to_request = None
         if url_p.netloc == 'github.com':
 
             direcotries = ['releases', 'tags']
@@ -266,62 +275,73 @@ class SearchUpdate(object):
 
             if path_splitted[1] == 'downloads':
                 path_splitted.remove('downloads')
-                url_parent = url_parent_base + '/'.join(path_splitted[:-1]) + '/' + direcotries[depth] + '/'
+                url_to_request = url_to_request_base + '/'.join(path_splitted) + '/' + direcotries[depth]
             else:
-                url_parent = url_parent_base + '/'.join(path_splitted[0:3]) + '/' + direcotries[depth] + '/'
-
-        elif url_p.netloc == 'sourceforge.net':
-            if len(path_splitted) < 5:
-                return None
-
-            url_parent = url_parent_base + '/'.join(path_splitted[:-1]) + '/'
-
-        elif url_p.netloc == 'download.sourceforge.net':
-            print(path_splitted)
-            if len(path_splitted) < 3:
-                return None
-
-            url_parent_base = url_p.scheme + '://sourceforge.net'
-            path_splitted = ['', 'projects'] + path_splitted[1:2] + ['files'] + path_splitted[2:]
-
-            url_parent = url_parent_base + '/'.join(path_splitted[:-1]) + '/'
-
-        elif url_p.netloc == 'downloads.sourceforge.net' or url_p.netloc.endswith('.sourceforge.net'):
-            print(path_splitted)
-            if len(path_splitted) < 4:
-                return None
-
-            url_parent_base = url_p.scheme + '://sourceforge.net'
-            path_splitted = ['', 'projects'] + path_splitted[2:3] + ['files'] + path_splitted[3:]
-
-            url_parent = url_parent_base + '/'.join(path_splitted[:-1]) + '/'
+                url_to_request = url_to_request_base + '/'.join(path_splitted[0:3]) + '/' + direcotries[depth]
 
         elif url_p.netloc == 'files.pythonhosted.org':
             if depth > 0:
                 return None
 
-            url_parent = 'https://pypi.python.org/pypi/' + path_splitted[-2] + '/'
+            url_to_request = 'https://pypi.python.org/pypi/' + path_splitted[-1]
+
+        elif url_p.netloc.endswith('.googlecode.com'):
+
+            project = url_p.netloc[:-15]
+            url_to_request = 'https://www.googleapis.com/storage/v1/b/google-code-archive/o/v2%2Fcode.google.com%2F' + project + '%2Fdownloads-page-' + str(depth + 1) + '.json?alt=media&stripTrailingSlashes=false'
+
+
+        # Remove depth path
+        if not url_to_request:
+            if depth > 0:
+                path_splitted = path_splitted[0:-depth]
+
+        # Get URL after remove depth path
+        if url_p.netloc == 'sourceforge.net':
+            if len(path_splitted) < 4:
+                return None
+
+        elif url_p.netloc == 'code.google.com':
+            if len(path_splitted) < 4:
+                return None
+
+        elif url_p.netloc == 'download.sourceforge.net':
+            if len(path_splitted) < 2:
+                return None
+
+            url_to_request_base = url_p.scheme + '://sourceforge.net'
+            path_splitted = ['', 'projects'] + path_splitted[1:2] + ['files'] + path_splitted[2:]
+
+        elif url_p.netloc == 'downloads.sourceforge.net':
+            if len(path_splitted) < 3:
+                return None
+
+            url_to_request_base = url_p.scheme + '://sourceforge.net'
+            path_splitted = ['', 'projects'] + path_splitted[2:3] + ['files'] + path_splitted[3:]
 
         else:
             if len(path_splitted) < 2:
                 return None
 
-            url_parent = url_parent_base + '/'.join(path_splitted[:-1]) + '/'
+        if not url_to_request:
+            url_to_request = url_to_request_base + '/'.join(path_splitted)
 
 
-        self.log("Download url page: " + url_parent)
-        req = requests.get(url_parent, allow_redirects=True)
+        url_to_request_p = urlparse(url_to_request.rstrip('/'))
+
+        self.print("Download url page: " + url_to_request)
+        req = requests.get(url_to_request, allow_redirects=True)
 
         text = ''
         if req.status_code == requests.codes.ok:
             text = req.text
         else:
-            self.log('Error to download page: ' + str(req.status_code))
+            self.print('Error to download page: ' + str(req.status_code))
             return None
 
         # Text filter
         text_filtered = ''
-        if url_p.netloc == 'sourceforge.net' or url_p.netloc == 'download.sourceforge.net' or url_p.netloc == 'downloads.sourceforge.net':
+        if url_to_request_p.netloc == 'sourceforge.net':
             soup = BeautifulSoup(text, "html5lib")
             soup_find = soup.find("div", {"id": "files"})
             if soup_find:
@@ -330,7 +350,7 @@ class SearchUpdate(object):
             soup_find = soup.find("div", {"id": "download-bar"})
             if soup_find:
                 text_filtered += str(soup_find)
-        elif url_p.netloc == 'files.pythonhosted.org':
+        elif url_to_request_p.netloc == 'pypi.python.org':
             soup = BeautifulSoup(text, "html5lib")
             soup_find = soup.find("table", {"id": "list"})
             if soup_find:
@@ -345,24 +365,45 @@ class SearchUpdate(object):
         if len(text_filtered) > 0:
             text = text_filtered
 
+
+        # Check for redirect
+        # Ex: Google Code redirect to github
+        req.url = req.url.rstrip('/')
+        req_url_p = urlparse(req.url)
+        if len(req.history) > 0 and (url_to_request_p.netloc != req_url_p.netloc or url_to_request_p.path != req_url_p.path):
+            text_full = ''
+            depth = 0
+            while True:
+                text = self._get_url_data(req.url, depth)
+                if not text:
+                    break
+                text_full += text
+                depth += 1
+            return text_full
+
         return text
 
 
     def _search_updates_http(self):
         url = self.get_url()
         version = self.get_version()
+        if not version:
+            self.print('Error: No version found !')
+            return None
+
         version_p = parse_version(version)
 
-        self.log("Current version: " + version)
+        self.print("Current version: " + version)
 
         url_splitted = url.split('/')
         filename = url_splitted[-1]
+        url = '/'.join(url_splitted[0:-1])
 
         path_file_cached = os.path.join(self._work_dir, 'list.html')
         path_file_txt_cached = os.path.join(self._work_dir, 'list.txt')
 
         download = True
-        if os.path.exists(path_file_cached):
+        if self._use_cache == True and os.path.exists(path_file_cached):
             mtime = os.path.getmtime(path_file_cached)
             delay_cache = SearchUpdate.delay_cache
             if (mtime + delay_cache) > time.time():
@@ -370,17 +411,27 @@ class SearchUpdate(object):
 
         text_full = ''
         if download:
-
             text_full = ''
             depth = 0
             while True:
-                text = self._get_parent_url_data(url, version, depth)
+                text = self._get_url_data(url, depth)
                 if not text:
                     break
                 text_full += text
                 depth += 1
 
-            if text_full and len(text_full) > 0:
+            # If no data, check home page
+            if len(text_full) == 0:
+                home_page = self._parser.get_var_values('HOMEPAGE')
+                if home_page:
+                    self.print("No result: Search in home page")
+                    text = self._get_url_data(home_page[0], 0)
+                    if text:
+                        text_full += text
+
+
+
+            if len(text_full) > 0:
                 file = open(path_file_cached, 'w')
                 file.write(text_full)
                 file.close()
@@ -388,13 +439,13 @@ class SearchUpdate(object):
                 return None
 
         else:
-            self.log("Use cached file: " + path_file_cached)
+            self.print("Use cached file: " + path_file_cached)
             file= open(path_file_cached, 'r')
             text_full = ''.join(file.readlines())
             file.close()
 
 
-        self.log("Check for filename in pages")
+        self.print("Check for filename in pages")
 
         regex_filename = self._generate_regex_version(version)
 
@@ -403,12 +454,14 @@ class SearchUpdate(object):
         new_versions = {}
         for m in matches:
             version_curr_p = parse_version(m[1])
+            # Keep current version to avoid to search version
             if version_curr_p >= version_p:
                 if m[1] not in new_versions:
                     new_versions[ m[1] ] = {'version': m[1], 'extensions': [ m[-1] ], 'is_prerelease': version_curr_p.is_prerelease}
                 elif m[-1] not in new_versions[ m[1] ]['extensions']:
                     new_versions[ m[1] ]['extensions'].append(m[-1])
 
+        # If none filename with version is found even the current version, search any version if the current version is present
         if len(new_versions) == 0 and version in text_full:
 
             def clean_html(html):
@@ -426,15 +479,13 @@ class SearchUpdate(object):
 
             plain_text = clean_html(text_full)
 
-            file = open(path_file_txt_cached, 'w')
-            file.write(plain_text)
-            file.close()
-            self.log("Check for version in pages")
+            self.print("Check for version in pages")
 
             regex_version = re.escape(version)
             regex_version = re.sub('\-\w+', '\-\w+', regex_version)
             regex_version = re.sub('[0-9]+', '[0-9]+', regex_version)
             regex_version = '(' + regex_version + ')'
+            _LOGGER.debug("_search_updates_http: regex_version: %s" % (regex_version,))
 
             matches = re.findall(regex_version, plain_text)
 
@@ -444,6 +495,10 @@ class SearchUpdate(object):
                     new_versions[ m ] = {'version': m, 'is_prerelease': version_curr_p.is_prerelease}
 
         new_versions = collections.OrderedDict(sorted(new_versions.items(), key=lambda x: parse_version(x[0]), reverse=True))
+
+        # Remove current version
+        #if version in new_versions.keys():
+        #    del new_versions[ version ]
 
         return new_versions
 

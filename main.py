@@ -14,6 +14,7 @@ class MainApp(object):
         self._root = None
         self._package = None
         self._verbose = False
+        self._use_cache = True
 
     def help(self):
         print("""
@@ -26,7 +27,8 @@ Options:
   -h --help                     Show this screen.
   -r --root=<root>              Root directory of spksrc
   -p --package=<package>        Package to check update (Optional)
-  -v --verbose                  Verbose mode
+  -c --verbose                  Verbose mode
+  -v --disable-cache            Disable cache
 """)
 
     def check_spksc_dir(self):
@@ -42,7 +44,7 @@ Options:
 
     def read_args(self):
         try:
-            opts, args = getopt.getopt(sys.argv[1:], "hr:p:", ["root=", "package="])
+            opts, args = getopt.getopt(sys.argv[1:], "hcr:p:", ["root=", "package="])
         except getopt.GetoptError as e:
             self.help()
             print(e)
@@ -52,9 +54,10 @@ Options:
             if opt == '-h':
                 self.help()
                 sys.exit()
-            elif opt == '-v':
+            elif opt in ("-v", "--verbose"):
                 self._verbose = True
-                sys.exit()
+            elif opt in ("-c", "--disable-cache"):
+                self._use_cache = False
             elif opt in ("-r", "--root"):
                 self._root = arg.rstrip(os.path.sep) + os.path.sep
             elif opt in ("-p", "--package"):
@@ -76,7 +79,12 @@ Options:
 
     def check_update_makefile(self, package, path):
         search_update = SearchUpdate(package, path)
+
+        if self._use_cache == False:
+            search_update.disable_cache()
+
         new_versions = search_update.search_updates()
+
         if new_versions:
             pprint.pprint(new_versions)
 
