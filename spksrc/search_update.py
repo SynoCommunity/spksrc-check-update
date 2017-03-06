@@ -50,7 +50,8 @@ class SearchUpdate(object):
 
         regex_version = '([0-9]+((?P<sep>[._-])([0-9a-zA-Z]+))*(-\w+)*)'
         regex_filename = '(' + re.escape(filename[0]).replace('XXXVERXXX', regex_version) + ')'
-        regex_filename = re.sub('(\\\.tar\\\.bz2|\\\.tar\\\.gz|\\\.tar\\\.xz|\\\.zip|\\\.rar|\\\.tgz)', '\.(tar\.bz2|tar\.gz|tar\.xz|zip|rar|tgz)', regex_filename)
+        regex_filename = re.sub('(\\\.tar\\\.bz2|\\\.tar\\\.gz|\\\.tar\\\.xz|\\\.tar\\\.bz2|\\\.zip|\\\.rar|\\\.tgz)', '\.(tar\.bz2|tar\.gz|tar\.xz|tar\.bz2|zip|rar|tgz)', regex_filename)
+        print(regex_filename)
 
         return re.compile(regex_filename)
 
@@ -235,9 +236,10 @@ class SearchUpdate(object):
             match = regex_filename.search(filename.strip('\n'))
             if match:
                 m = match.groups()
-                if parse_version(m[1]) > version_p:
+                version_curr_p = parse_version(m[1])
+                if version_curr_p >= version_p:
                     if m[1] not in new_versions:
-                        new_versions[ m[1] ] = {'version': m[1], 'extensions': [ m[-1] ]}
+                        new_versions[ m[1] ] = {'version': m[1], 'extensions': [ m[-1] ], 'is_prerelease': version_curr_p.is_prerelease}
                     elif m[-1] not in new_versions[ m[1] ]['extensions']:
                         new_versions[ m[1] ]['extensions'].append(m[-1])
 
@@ -246,41 +248,68 @@ class SearchUpdate(object):
         return new_versions
 
 
-    def _get_parent_url_data(self, url, version):
+    def _get_parent_url_data(self, url, version, depth = 0):
         url_p = urlparse(url)
 
         path_splitted = url_p.path.split('/')
         url_parent_base = url_p.scheme + '://' + url_p.netloc
 
+        if depth > 0:
+            path_splitted = path_splitted[0:-depth]
+
         # Get parent URL
         if url_p.netloc == 'github.com':
+
+            direcotries = ['releases', 'tags']
+            if depth >= len(direcotries):
+                return None
+
             if path_splitted[1] == 'downloads':
                 path_splitted.remove('downloads')
-                url_parent = url_parent_base + '/'.join(path_splitted[:-1]) + '/releases/'
+                url_parent = url_parent_base + '/'.join(path_splitted[:-1]) + '/' + direcotries[depth] + '/'
             else:
-                url_parent = url_parent_base + '/'.join(path_splitted[0:3]) + '/releases/'
+                url_parent = url_parent_base + '/'.join(path_splitted[0:3]) + '/' + direcotries[depth] + '/'
 
-        elif url_p.netloc == 'downloads.sourceforge.net':
-            url_parent_base = url_p.scheme + '://sourceforge.net'
-
-            path_splitted = ['', 'projects'] + path_splitted[2:3] + ['files'] + path_splitted[3:]
-            if version in path_splitted:
-                path_splitted.remove(version)
+        elif url_p.netloc == 'sourceforge.net':
+            if len(path_splitted) < 5:
+                return None
 
             url_parent = url_parent_base + '/'.join(path_splitted[:-1]) + '/'
 
+        elif url_p.netloc == 'download.sourceforge.net':
+            print(path_splitted)
+            if len(path_splitted) < 3:
+                return None
+
+            url_parent_base = url_p.scheme + '://sourceforge.net'
+            path_splitted = ['', 'projects'] + path_splitted[1:2] + ['files'] + path_splitted[2:]
+
+            url_parent = url_parent_base + '/'.join(path_splitted[:-1]) + '/'
+
+        elif url_p.netloc == 'downloads.sourceforge.net' or url_p.netloc.endswith('.sourceforge.net'):
+            print(path_splitted)
+            if len(path_splitted) < 4:
+                return None
+
+            url_parent_base = url_p.scheme + '://sourceforge.net'
+            path_splitted = ['', 'projects'] + path_splitted[2:3] + ['files'] + path_splitted[3:]
+
+            url_parent = url_parent_base + '/'.join(path_splitted[:-1]) + '/'
 
         elif url_p.netloc == 'files.pythonhosted.org':
+            if depth > 0:
+                return None
+
             url_parent = 'https://pypi.python.org/pypi/' + path_splitted[-2] + '/'
 
         else:
-            if version in path_splitted:
-                path_splitted.remove(version)
+            if len(path_splitted) < 2:
+                return None
 
             url_parent = url_parent_base + '/'.join(path_splitted[:-1]) + '/'
 
 
-        self.log("Download parent url page: " + url_parent)
+        self.log("Download url page: " + url_parent)
         req = requests.get(url_parent, allow_redirects=True)
 
         text = ''
@@ -292,9 +321,13 @@ class SearchUpdate(object):
 
         # Text filter
         text_filtered = ''
-        if url_p.netloc == 'sourceforge.net':
+        if url_p.netloc == 'sourceforge.net' or url_p.netloc == 'download.sourceforge.net' or url_p.netloc == 'downloads.sourceforge.net':
             soup = BeautifulSoup(text, "html5lib")
             soup_find = soup.find("div", {"id": "files"})
+            if soup_find:
+                text_filtered += str(soup_find)
+
+            soup_find = soup.find("div", {"id": "download-bar"})
             if soup_find:
                 text_filtered += str(soup_find)
         elif url_p.netloc == 'files.pythonhosted.org':
@@ -306,6 +339,8 @@ class SearchUpdate(object):
             soup_find = soup.find("ul", {"id": "nodot"})
             if soup_find:
                 text_filtered += str(soup_find)
+        else:
+            text_filtered = text
 
         if len(text_filtered) > 0:
             text = text_filtered
@@ -333,13 +368,21 @@ class SearchUpdate(object):
             if (mtime + delay_cache) > time.time():
                 download = False
 
-        text = ''
+        text_full = ''
         if download:
-            text = self._get_parent_url_data(url, version)
 
-            if text and len(text) > 0:
+            text_full = ''
+            depth = 0
+            while True:
+                text = self._get_parent_url_data(url, version, depth)
+                if not text:
+                    break
+                text_full += text
+                depth += 1
+
+            if text_full and len(text_full) > 0:
                 file = open(path_file_cached, 'w')
-                file.write(text)
+                file.write(text_full)
                 file.close()
             else:
                 return None
@@ -347,25 +390,26 @@ class SearchUpdate(object):
         else:
             self.log("Use cached file: " + path_file_cached)
             file= open(path_file_cached, 'r')
-            text = ''.join(file.readlines())
+            text_full = ''.join(file.readlines())
             file.close()
 
 
-        self.log("Check for filename in parent page")
+        self.log("Check for filename in pages")
 
         regex_filename = self._generate_regex_version(version)
 
-        matches = regex_filename.findall(text)
+        matches = regex_filename.findall(text_full)
 
         new_versions = {}
         for m in matches:
-            if parse_version(m[1]) > version_p:
+            version_curr_p = parse_version(m[1])
+            if version_curr_p >= version_p:
                 if m[1] not in new_versions:
-                    new_versions[ m[1] ] = {'version': m[1], 'extensions': [ m[-1] ]}
+                    new_versions[ m[1] ] = {'version': m[1], 'extensions': [ m[-1] ], 'is_prerelease': version_curr_p.is_prerelease}
                 elif m[-1] not in new_versions[ m[1] ]['extensions']:
                     new_versions[ m[1] ]['extensions'].append(m[-1])
 
-        if len(new_versions) == 0 and version in text:
+        if len(new_versions) == 0 and version in text_full:
 
             def clean_html(html):
                 soup = BeautifulSoup(html, "html5lib")
@@ -380,12 +424,12 @@ class SearchUpdate(object):
                 text = '\n'.join(chunk for chunk in chunks if chunk)
                 return text
 
-            plain_text = clean_html(text)
+            plain_text = clean_html(text_full)
 
             file = open(path_file_txt_cached, 'w')
             file.write(plain_text)
             file.close()
-            self.log("Check for version in parent page")
+            self.log("Check for version in pages")
 
             regex_version = re.escape(version)
             regex_version = re.sub('\-\w+', '\-\w+', regex_version)
@@ -395,8 +439,9 @@ class SearchUpdate(object):
             matches = re.findall(regex_version, plain_text)
 
             for m in matches:
-                if m not in new_versions and parse_version(m) > version_p:
-                    new_versions[ m ] = {'version': m}
+                version_curr_p = parse_version(m)
+                if m not in new_versions and version_curr_p >= version_p:
+                    new_versions[ m ] = {'version': m, 'is_prerelease': version_curr_p.is_prerelease}
 
         new_versions = collections.OrderedDict(sorted(new_versions.items(), key=lambda x: parse_version(x[0]), reverse=True))
 

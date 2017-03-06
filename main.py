@@ -75,8 +75,8 @@ Options:
 
 
     def check_update_makefile(self, package, path):
-        package = SearchUpdate(package, path)
-        new_versions = package.search_updates()
+        search_update = SearchUpdate(package, path)
+        new_versions = search_update.search_updates()
         if new_versions:
             pprint.pprint(new_versions)
 
