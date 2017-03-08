@@ -35,6 +35,7 @@ class SearchUpdate(object):
         self._package = package
         self._path = path
         self._work_dir = os.path.join(SearchUpdate.work_dir, package)
+        self._urls_list = []
 
         _LOGGER.debug("__init__: path: %s" % (path,))
         self._parser = MakefileParser()
@@ -208,6 +209,7 @@ class SearchUpdate(object):
         self.print("Download ftp list from parent url: " + url_to_request)
 
         url_to_request_p = urlparse(url_to_request)
+        self._urls_list.append(url_to_request)
 
 
         path_file_cached = os.path.join(self._work_dir, 'list.txt')
@@ -260,6 +262,7 @@ class SearchUpdate(object):
 
 
     def _get_url_data(self, url, depth = 0):
+
         url_p = urlparse(url)
 
         path_splitted = url_p.path.split('/')
@@ -329,6 +332,11 @@ class SearchUpdate(object):
 
         url_to_request_p = urlparse(url_to_request.rstrip('/'))
 
+        if url_to_request in self._urls_list:
+
+            self.print("Url page already download: " + url_to_request)
+            return None
+
         self.print("Download url page: " + url_to_request)
         req = requests.get(url_to_request, allow_redirects=True)
 
@@ -371,6 +379,7 @@ class SearchUpdate(object):
         req.url = req.url.rstrip('/')
         req_url_p = urlparse(req.url)
         if len(req.history) > 0 and (url_to_request_p.netloc != req_url_p.netloc or url_to_request_p.path != req_url_p.path):
+            self.print("Check redirection to: "+req.url)
             text_full = ''
             depth = 0
             while True:
@@ -380,6 +389,8 @@ class SearchUpdate(object):
                 text_full += text
                 depth += 1
             return text_full
+        else:
+            self._urls_list.append(url_to_request)
 
         return text
 
