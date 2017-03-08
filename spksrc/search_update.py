@@ -435,8 +435,12 @@ class SearchUpdate(object):
             if len(text_full) == 0:
                 home_page = self._parser.get_var_values('HOMEPAGE')
                 if home_page:
+                    home_page__p = urlparse(home_page[0])
+                    home_page = home_page[0]
+                    if len(home_page) == 1:
+                        home_page += '/'
                     self.print("No result: Search in home page")
-                    text = self._get_url_data(home_page[0], 0)
+                    text = self._get_url_data(home_page, 0)
                     if text:
                         text_full += text
 
