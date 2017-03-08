@@ -62,7 +62,7 @@ class SearchUpdate(object):
 
         regex_version = '([0-9]+((?P<sep>[._-])([0-9a-zA-Z]+))*(-\w+)*)'
         regex_filename = '(' + re.escape(filename[0]).replace('XXXVERXXX', regex_version) + ')'
-        regex_filename = re.sub('(\\\.tar\\\.bz2|\\\.tar\\\.gz|\\\.tar\\\.xz|\\\.tar\\\.bz2|\\\.zip|\\\.rar|\\\.tgz)', '\.(tar\.bz2|tar\.gz|tar\.xz|tar\.bz2|zip|rar|tgz)', regex_filename)
+        regex_filename = re.sub('(\\\.tar\\\.lz|\\\.tar\\\.bz2|\\\.tar\\\.gz|\\\.tar\\\.xz|\\\.tar\\\.bz2|\\\.zip|\\\.rar|\\\.tgz)', '\.(tar\.lz|tar\.bz2|tar\.gz|tar\.xz|tar\.bz2|zip|rar|tgz)', regex_filename)
         _LOGGER.debug("_generate_regex_version: regex_filename: %s" % (regex_filename,))
 
         return re.compile(regex_filename)
