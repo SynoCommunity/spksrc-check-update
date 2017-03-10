@@ -1,4 +1,3 @@
-
 import sys
 import os
 import shutil
@@ -7,6 +6,7 @@ import time
 import copy
 import logging
 import collections
+import pickle
 
 import git as git
 import svn as svn
@@ -26,8 +26,10 @@ _LOGGER = logging.getLogger(__name__)
 
 class SearchUpdate(object):
 
+    # Work dir to save
     work_dir = 'work'
 
+    # Delay to save cache
     delay_cache = 24 * 3600
 
     def __init__(self, package, path):
@@ -41,19 +43,37 @@ class SearchUpdate(object):
         self._parser = MakefileParser()
         self._parser.parse_file(path)
 
+
     def print(self, message):
+        """ Print a message with a prefix
+        """
         print("[" + self._package + "] " + message)
 
-
     def enable_cache(self):
+        """ Enable cache
+        """
         self._use_cache = True
 
-
     def disable_cache(self):
+        """ Disable cache
+        """
         self._use_cache = False
 
+    def save_cache(self, filename, data):
+        """ Save cache in a file
+        """
+        with open(filename, 'wb') as f:
+            pickle.dump(data, f, pickle.HIGHEST_PROTOCOL)
+
+    def load_cache(self, filename):
+        """ Load cache from a file
+        """
+        with open(filename, 'rb') as f:
+            return pickle.load(f)
 
     def get_url(self):
+        """ Return URL from Makefile package
+        """
         url = self._parser.get_var_values('PKG_DIST_SITE')
         if url is not None:
             url_file = self._parser.get_var_values('PKG_DIST_NAME')
@@ -64,39 +84,47 @@ class SearchUpdate(object):
 
         return None
 
-
     def get_version(self):
+        """Return version form Makefile package
+        """
         version = self._parser.get_var_values('PKG_VERS')
         if version:
-            version = version[0]
+            return version[0]
 
         return version
 
-
-
     def _search_updates_git(self):
+        """Search new tags or commits in git repository
+        """
         url = self.get_url()
 
+        # Temp path to clone reository
         git_path = os.path.join(self._work_dir, 'git')
+        # Get current Hash of package
         git_hash = self._parser.get_var_values('PKG_GIT_HASH', ['master'])[0]
 
         _LOGGER.info("Current git hash: %s" % (git_hash,))
 
+        # State file to determine when the repository is cloned
         git_is_cloned = os.path.join(self._work_dir, '.git_clone')
         if not os.path.exists(git_is_cloned):
+            # Remove partial cloned dir
             if os.path.exists(git_path):
                 shutil.rmtree(git_path)
 
+            # Clone repository
             self.print("Clone repository: " + url)
             try:
                 git.Repo.clone_from(url, git_path)
             except git.GitCommandError as exception:
                 self.print("Error to clone git")
                 return
+
+            # Touch the state file
             open(git_is_cloned, 'w').close()
             self.print("Repository cloned")
 
-
+        # Fetch and pull
         self.print("Fetch and pull git")
         repo = git.Repo(git_path)
         for remote in repo.remotes:
@@ -122,12 +150,16 @@ class SearchUpdate(object):
 
         return new_versions
 
-
     def _search_updates_svn(self):
+        """# Search new tags or revision in subversion repository
+        """
         url = self.get_url()
 
+        # Temp path to checkout reository
         svn_path = os.path.join(self._work_dir, 'svn')
+        # Get current Revision of package
         svn_rev = self._parser.get_var_values('PKG_SVN_REV')
+        # Get next revision
         svn_rev_next = 'HEAD'
         if svn_rev is not None:
             svn_rev = svn_rev[0]
@@ -135,14 +167,17 @@ class SearchUpdate(object):
         else:
             svn_rev = 'HEAD'
 
+
         self.print("Current svn revision: " + svn_rev)
 
-
+        # State file to determine when the repository is checkout
         svn_is_checkout = os.path.join(self._work_dir, '.svn_checkout')
         if not os.path.exists(svn_is_checkout):
+            # Delete partial checkout dir
             if os.path.exists(svn_path):
                 shutil.rmtree(svn_path)
 
+            # Checkout repository
             self.print("Checkout repository: " + url)
             try:
                 repo = svn.remote.RemoteClient(url)
@@ -150,17 +185,21 @@ class SearchUpdate(object):
             except:
                 self.print("Error to checkout svn")
                 return
+
+            # Touch the state file
             open(svn_is_checkout, 'w').close()
             self.print("Repository checkout")
 
 
         repo = svn.local.LocalClient(svn_path)
 
+        # Update repository
         self.print("Update svn")
         repo.update()
 
         new_versions = []
 
+        # Get new revision in /tags repository
         self.print("Get new revisions in /tags directory")
         tags_rev = repo.log_default(None, None, None, '^/tags', None, svn_rev_next, None)
         for rev in tags_rev:
@@ -168,51 +207,94 @@ class SearchUpdate(object):
 
         return new_versions
 
-
     def _download_content(self, url):
+        """ Download the content of an url (HHTP or FTP)
+        For FTP, return the list of directories and files.
+        For HTTP, return the content and href attribute of 'a' tag
+        Return a dict with scheme, url, url parsed and hrefs found
+        """
         url = url.rstrip('/')
         url_p = urlparse(url)
 
-        content = None
+        hrefs = None
         history = []
         if url_p.scheme == 'ftp':
+            # Get content page on FTP
             try:
                 ftp = FTP(url_p.netloc)
                 ftp.login()
                 ftp.cwd(url_p.path)
-                #files = ftp.nlst()
-                #files = ftp.dir()
                 files = []
                 ftp.retrlines('LIST', files.append)
-                files_new = []
+                hrefs = []
                 for f in files:
                     infos = f.split(' ')
                     file = infos[-1]
                     if infos[0][0] == 'd':
                         file += '/'
-                    files_new.append(file)
-                content = '\n'.join(files_new)
+                    hrefs.append({'href': file, 'href_p': urlparse(file), 'content': ''})
             except:
                 self.print('Error to connect on FTP')
                 return None
         else:
+            # Get content page on HTTP
             req = requests.get(url, allow_redirects=True)
 
+            # If code 200
             if req.status_code == requests.codes.ok:
-                content = req.text
+                hrefs = []
+                # Get url after redirection
                 url = req.url.rstrip('/')
+                # Get history of redirection
                 history = req.history
+
+                # Text filter to avoid ads
+                content = req.text
+                content_filtered = ''
+                if url_p.netloc == 'sourceforge.net':
+                    # Case of sourceforge.net
+                    soup = BeautifulSoup(content, "html5lib")
+                    soup_find = soup.find("div", {"id": "files"})
+                    if soup_find:
+                        content_filtered += str(soup_find)
+
+                    soup_find = soup.find("div", {"id": "download-bar"})
+                    if soup_find:
+                        content_filtered += str(soup_find)
+                elif url_p.netloc == 'pypi.python.org':
+                    # Case of pypi.python.org
+                    soup = BeautifulSoup(content, "html5lib")
+                    soup_find = soup.find("table", {"id": "list"})
+                    if soup_find:
+                        content_filtered += str(soup_find)
+
+                    soup_find = soup.find("ul", {"id": "nodot"})
+                    if soup_find:
+                        content_filtered += str(soup_find)
+
+                if len(content_filtered) > 0:
+                    content = content_filtered
+
+                soup = BeautifulSoup(content, "html5lib")
+                for item in soup.find_all("a"):
+                    href = item.get('href')
+                    if href:
+                        hrefs.append({'href': href, 'href_p': urlparse(href), 'content': str(item.next).strip()})
             else:
+                # In case of code different to 200
                 self.print('Error to download page: ' + url)
                 return None
 
-        return {'type': url_p.scheme, 'url': url, 'url_p': url_p, 'content': content, 'history': history}
+        return {'type': url_p.scheme, 'url': url, 'url_p': url_p, 'hrefs': hrefs, 'history': history}
 
 
     def _search_download_urls(self):
-
-        # List domains to get download link for these domains
+        """ Search link or content link which contains 'download'
+        Return link found
+        """
+        # List of allowed schemes
         schemes = ['', 'http', 'https', 'ftp']
+        # List of allowed domains
         domains = ['']
         for url, data in self._urls_downloaded.items():
             if data['url_p'].netloc not in domains:
@@ -220,107 +302,115 @@ class SearchUpdate(object):
 
         urls = []
         for url, data in self._urls_downloaded.items():
-            soup = BeautifulSoup(data['content'], "html5lib")
-            for item in soup.find_all("a"):
-                href = item.get('href')
-                if href:
-                    href_p = urlparse(href)
-                    if href_p.scheme in schemes and href_p.netloc in domains:
-                        content = href_p.path + ' ' + str(item.next)
-                        match = re.search('download', content, re.IGNORECASE)
-                        if match:
-                            _LOGGER.warn("_search_download_urls: regex-search: %s" % (content,))
-                            url = data['url_p'].scheme + '://' + data['url_p'].netloc + '/' + href_p.path.lstrip('/')
-                            if url not in urls and url not in self._urls_downloaded:
-                              urls.append(url)
+            for href in data['hrefs']:
+                if href['href_p'].scheme in schemes and href['href_p'].netloc in domains:
+                    content = href['href'].path + ' ' + href['content']
+                    match = re.search('download', content, re.IGNORECASE)
+                    if match:
+                        _LOGGER.debug("_search_download_urls: regex-search: %s" % (content,))
 
+                        # Create full link
+                        url_found = ''
+                        if len(href['href_p'].netloc) > 0:
+                            url_found = href['href_p'].scheme + '://' + href['href_p'].netloc
+                        else:
+                            if href['href_p'].path[0] == '/':
+                                url_found = data['url_p'].scheme + '://' + data['url_p'].netloc
+                            else:
+                                url_found = url
+                        url_found += '/' + href['href_p'].path.lstrip('/')
+
+                        if url not in urls and url not in self._urls_downloaded:
+                          urls.append(url)
         return urls
 
 
 
     def _search_version_urls(self):
-
+        """ Search link or content link which terminates by a directory ending by a version number and may be a html or php file
+        Return link found
+        """
         # List domains to get version directory link for these domains
+        # List of allowed schemes
         schemes = ['', 'http', 'https', 'ftp']
+        # List of allowed domains
         domains = ['']
         for url, data in self._urls_downloaded.items():
             if data['url_p'].netloc not in domains:
                 domains.append(data['url_p'].netloc)
 
+        # Regex for href attribute
         regex_version_href = re.compile('(([0-9]+)(\.([0-9]+))+(-[a-zA-Z0-9_]+)*)/(\w+.(html|php))?$')
+        # Regex for tag content
         regex_version_content = re.compile('^(([0-9]+)(\.([0-9]+))+(-[a-zA-Z0-9_]+))*$')
 
         urls = []
         for url, data in self._urls_downloaded.items():
-
-            hrefs = []
-            if data['url_p'].scheme == 'ftp':
-                hrefs = map(lambda x: [x, ''], data['content'].split('\n'))
-            else:
-                soup = BeautifulSoup(data['content'], "html5lib")
-                for item in soup.find_all("a"):
-                    hrefs.append([item.get('href'), str(item.next).strip()])
-            for href_info in hrefs:
+            for href in data['hrefs']:
                 version = None
-                href = href_info[0]
-                content = href_info[1]
-                href_p = urlparse(href)
 
-                if href_p.scheme in schemes and href_p.netloc in domains:
-                    match_href = regex_version_href.search(str(href_p.path))
+                if href['href_p'].scheme in schemes and href['href_p'].netloc in domains:
+                    match_href = regex_version_href.search(str(href['href_p'].path))
                     if match_href:
                         version = parse_version(match_href.group(1))
                     if not version:
-                        if len(content) > 0:
-                            match_content = regex_version_content.search(content)
+                        if len(href['content']) > 0:
+                            match_content = regex_version_content.search(href['content'])
                             if match_content:
                                 version = parse_version(match_content.group(1))
                 if version and version > self._version_p:
-                    _LOGGER.debug("_search_version_urls: regex-search: %s, %s" % (str(href_p.path), content,))
+                    _LOGGER.debug("_search_version_urls: regex-search: %s, %s" % (href['href_p'].path, href['content'],))
+
+                    # Create full link
                     url_found = ''
-                    if len(href_p.netloc) > 0:
-                        url_found = href_p.scheme + '://' + href_p.netloc
+                    if len(href['href_p'].netloc) > 0:
+                        url_found = href['href_p'].scheme + '://' + href['href_p'].netloc
                     else:
-                        if href_p.path[0] == '/':
+                        if href['href_p'].path[0] == '/':
                             url_found = data['url_p'].scheme + '://' + data['url_p'].netloc
                         else:
                             url_found = url
-                    url_found += '/' + href_p.path.lstrip('/')
+                    url_found += '/' + href['href_p'].path.lstrip('/')
+
                     if url_found not in urls and url_found not in self._urls_downloaded:
                       urls.append(url_found)
-
         return urls
 
 
     def _get_url_data(self, url, depth = 0):
-
+        """ Get data for an url.
+        Depth define the path to remove from the url
+        """
         url_p = urlparse(url)
 
         path_splitted = url_p.path.split('/')
         url_to_request_base = url_p.scheme + '://' + url_p.netloc
 
-        # Get URL to request before remove depth path
+        # Adapt URL to request before remove depth path
         url_to_request = None
         if url_p.netloc == 'github.com':
 
-            direcotries = ['releases', 'tags']
-            if depth >= len(direcotries):
+            # For Github, get releases and tags directories
+            directories = ['releases', 'tags']
+            if depth >= len(directories):
                 return None
 
             if path_splitted[1] == 'downloads':
                 path_splitted.remove('downloads')
-                url_to_request = url_to_request_base + '/'.join(path_splitted) + '/' + direcotries[depth]
+                url_to_request = url_to_request_base + '/'.join(path_splitted) + '/' + directories[depth]
             else:
-                url_to_request = url_to_request_base + '/'.join(path_splitted[0:3]) + '/' + direcotries[depth]
+                url_to_request = url_to_request_base + '/'.join(path_splitted[0:3]) + '/' + directories[depth]
 
         elif url_p.netloc == 'files.pythonhosted.org':
             if depth > 0:
                 return None
 
+            # For files.pythonhosted.org, get the package information
             url_to_request = 'https://pypi.python.org/pypi/' + path_splitted[-1]
 
         elif url_p.netloc.endswith('.googlecode.com'):
 
+            # For .googlecode.com, get pages of files list
             project = url_p.netloc[:-15]
             url_to_request = 'https://www.googleapis.com/storage/v1/b/google-code-archive/o/v2%2Fcode.google.com%2F' + project + '%2Fdownloads-page-' + str(depth + 1) + '.json?alt=media&stripTrailingSlashes=false'
 
@@ -330,7 +420,7 @@ class SearchUpdate(object):
             if depth > 0:
                 path_splitted = path_splitted[0:-depth]
 
-        # Get URL after remove depth path
+        # Limit depth for spefic domain
         if url_p.netloc == 'sourceforge.net':
             if len(path_splitted) < 4:
                 return None
@@ -357,51 +447,28 @@ class SearchUpdate(object):
             if len(path_splitted) < 2:
                 return None
 
+        # If url_to_request was not defined in specific case
         if not url_to_request:
             url_to_request = url_to_request_base + '/'.join(path_splitted)
 
-
+        # Avoid to download page more than one time
         if url_to_request in self._urls_downloaded:
             self.print("Url page already download: " + url_to_request)
             return None
 
+        # Download page content
         self.print("Download url page: " + url_to_request)
         content_request = self._download_content(url_to_request)
 
+        # In case of empty result, return None
         if not content_request:
             return None
 
-
-        # Text filter
-        content = content_request['content']
-        content_filtered = ''
-        if content_request['url_p'].netloc == 'sourceforge.net':
-            soup = BeautifulSoup(content, "html5lib")
-            soup_find = soup.find("div", {"id": "files"})
-            if soup_find:
-                content_filtered += str(soup_find)
-
-            soup_find = soup.find("div", {"id": "download-bar"})
-            if soup_find:
-                content_filtered += str(soup_find)
-        elif content_request['url_p'].netloc == 'pypi.python.org':
-            soup = BeautifulSoup(content, "html5lib")
-            soup_find = soup.find("table", {"id": "list"})
-            if soup_find:
-                content_filtered += str(soup_find)
-
-            soup_find = soup.find("ul", {"id": "nodot"})
-            if soup_find:
-                content_filtered += str(soup_find)
-
-        if len(content_filtered) > 0:
-            content = content_filtered
-
-
-        self._urls_downloaded[ url_to_request ] = {'content': content, 'url_p': content_request['url_p']}
+        self._urls_downloaded[ url_to_request ] = content_request
 
 
         # Check for redirect
+        # And download page to catch specific case
         # Ex: Google Code redirect to github
         req_url_p = urlparse(content_request['url'])
         if len(content_request['history']) > 0 and (content_request['url_p'].netloc != req_url_p.netloc or content_request['url_p'].path != req_url_p.path):
@@ -417,6 +484,8 @@ class SearchUpdate(object):
 
 
     def _generate_regex_filename(self):
+        """ Return a regex to find the filename with version and extension
+        """
         tmp_parser = copy.copy(self._parser)
         tmp_parser.set_var_values('PKG_VERS', 'XXXVERXXX')
         tmp_parser.evaluate_var('PKG_DIST_NAME')
@@ -431,6 +500,9 @@ class SearchUpdate(object):
 
 
     def _generate_regex_version(self):
+        """ Return a regex to find the version based on the current version
+        """
+        tmp_parser = copy.copy(self._parser)
         regex_version = re.escape(self._version)
         regex_version = re.sub('\-[a-zA-Z0-9_]+', '\-[a-zA-Z0-9_]+', regex_version)
         regex_version = re.sub('[0-9]+', '[0-9]+', regex_version)
@@ -441,6 +513,8 @@ class SearchUpdate(object):
 
 
     def _search_updates_common(self):
+        """ Search for update for FTP and HTTP link
+        """
         url = self.get_url()
         url_p = urlparse(url)
 
@@ -458,8 +532,7 @@ class SearchUpdate(object):
         filename = url_splitted[-1]
         url = '/'.join(url_splitted[0:-1])
 
-        path_file_cached = os.path.join(self._work_dir, 'list.html')
-        path_file_txt_cached = os.path.join(self._work_dir, 'list.txt')
+        path_file_cached = os.path.join(self._work_dir, 'list.pkl')
 
         download = True
         if self._use_cache == True and os.path.exists(path_file_cached):
@@ -503,40 +576,22 @@ class SearchUpdate(object):
                 for url in version_urls:
                     self._get_url_data(url)
 
-            content = ' '
-            if len(content) > 0:
-                file = open(path_file_cached, 'w')
-                file.write(content)
-                file.close()
-            else:
-                return None
-
+            self.save_cache(path_file_cached, self._urls_downloaded)
         else:
             self.print("Use cached file: " + path_file_cached)
-            file= open(path_file_cached, 'r')
-            content = ''.join(file.readlines())
-            file.close()
+            self._urls_downloaded = self.load_cache(path_file_cached)
 
 
         self.print("Check for filename in pages")
 
+        # Get regex for filename
         regex_filename = self._generate_regex_filename()
 
         # Get version from downloaded pages
         new_versions = {}
         for url, data in self._urls_downloaded.items():
-
-            hrefs = []
-            if data['url_p'].scheme == 'ftp':
-                hrefs = data['content'].split('\n')
-            else:
-                soup = BeautifulSoup(data['content'], "html5lib")
-                for item in soup.find_all("a"):
-                    hrefs.append(str(item.get('href')))
-
-            for href in hrefs:
-                href_p = urlparse(href)
-                match = regex_filename.search(href_p.path)
+            for href in data['hrefs']:
+                match = regex_filename.search(href['href_p'].path)
                 if match:
                     m = match.groups()
                     version_curr = m[1].replace('_', '.')
@@ -545,18 +600,18 @@ class SearchUpdate(object):
                     if version_curr_p >= self._version_p:
                         scheme = ''
                         url_filename = '//'
-                        if len(href_p.netloc) > 0:
-                            scheme = href_p.scheme
-                            url_filename += href_p.netloc
+                        if len(href['href_p'].netloc) > 0:
+                            scheme = href['href_p'].scheme
+                            url_filename += href['href_p'].netloc
                         else:
                             scheme =  data['url_p'].scheme
                             url_filename += data['url_p'].netloc
 
                         url_filename = url_filename + '/'
-                        if href_p.path[0] != '/':
+                        if href['href_p'].path[0] != '/':
                             url_filename += data['url_p'].path.strip('/') + '/'
 
-                        url_filename += href_p.path[0:match.end()].strip('/')
+                        url_filename += href['href_p'].path[0:match.end()].strip('/')
 
                         if scheme == '':
                             scheme = 'https'
@@ -574,8 +629,8 @@ class SearchUpdate(object):
         new_versions = collections.OrderedDict(sorted(new_versions.items(), key=lambda x: parse_version(x[0]), reverse=True))
 
         # Remove current version
-        #if self._version in new_versions.keys():
-        #    del new_versions[ self._version ]
+        if self._version in new_versions.keys():
+            del new_versions[ self._version ]
 
         return new_versions
 
@@ -588,6 +643,8 @@ class SearchUpdate(object):
         method = self._parser.get_var_values('PKG_DOWNLOAD_METHOD', ['common'])[0]
         func_name = '_search_updates_' + method
 
+        func = getattr(self, func_name)
+        return func()
         try:
             func = getattr(self, func_name)
             return func()
