@@ -423,8 +423,8 @@ class SearchUpdate(object):
         filename = tmp_parser.get_var_values('PKG_DIST_NAME')
 
         regex_version = '([0-9]+((?P<sep>[._-])([0-9a-zA-Z]+))*(-[a-zA-Z0-9_]+)*)'
-        regex_filename = '(' + re.escape(filename[0]).replace('XXXVERXXX', regex_version) + ')'
-        regex_filename = re.sub('(\\\.tar\\\.lz|\\\.tar\\\.bz2|\\\.tar\\\.gz|\\\.tar\\\.xz|\\\.tar\\\.bz2|\\\.zip|\\\.rar|\\\.tgz|\\\.7z)', '\.(tar\.lz|tar\.bz2|tar\.gz|tar\.xz|tar\.bz2|zip|rar|tgz|7z)($|/)', regex_filename)
+        regex_filename = '(' + re.escape(filename[0]).replace('XXXVERXXX', regex_version) + ')($|/)'
+        regex_filename = re.sub('(\\\.tar\\\.lz|\\\.tar\\\.bz2|\\\.tar\\\.gz|\\\.tar\\\.xz|\\\.tar\\\.bz2|\\\.zip|\\\.rar|\\\.tgz|\\\.7z)', '\.(tar\.lz|tar\.bz2|tar\.gz|tar\.xz|tar\.bz2|zip|rar|tgz|7z)', regex_filename)
         _LOGGER.debug("_generate_regex_filename: regex_filename: %s" % (regex_filename,))
 
         return re.compile(regex_filename)
@@ -535,37 +535,41 @@ class SearchUpdate(object):
                     hrefs.append(str(item.get('href')))
 
             for href in hrefs:
-                m = regex_filename.search(href)
-                if m:
-                    m = m.groups()
+                href_p = urlparse(href)
+                match = regex_filename.search(href_p.path)
+                if match:
+                    m = match.groups()
                     version_curr = m[1].replace('_', '.')
                     version_curr_p = parse_version(version_curr)
                     # Keep current version to avoid to search version
                     if version_curr_p >= self._version_p:
-                        url_filename = url.rstrip('/') + '/' + href
-
-                        href_p = urlparse(href)
-                        url_filename = ''
+                        scheme = ''
+                        url_filename = '//'
                         if len(href_p.netloc) > 0:
                             scheme = href_p.scheme
-                            if scheme == '':
-                                scheme = 'https'
-                            url_filename = scheme + '://' + href_p.netloc
+                            url_filename += href_p.netloc
                         else:
-                            if href_p.path[0] == '/':
-                                scheme =  data['url_p'].scheme
-                                if scheme == '':
-                                    scheme = 'https'
-                                url_filename = scheme + '://' + data['url_p'].netloc
-                            else:
-                                url_filename = url
-                        url_filename = url_filename.rstrip('/') + '/' + href_p.path.lstrip('/')
+                            scheme =  data['url_p'].scheme
+                            url_filename += data['url_p'].netloc
 
-                        url_info = {'filename': m[0], 'extensions': m[-1], 'full': url_filename}
+                        url_filename = url_filename + '/'
+                        if href_p.path[0] != '/':
+                            url_filename += data['url_p'].path.strip('/') + '/'
+
+                        url_filename += href_p.path[0:match.end()].strip('/')
+
+                        if scheme == '':
+                            scheme = 'https'
+
+                        url_info = {'filename': m[0], 'extensions': m[-2], 'full': url_filename, 'schemes': [scheme]}
                         if version_curr not in new_versions:
                             new_versions[ version_curr ] = {'version': version_curr, 'is_prerelease': version_curr_p.is_prerelease, 'urls': [ url_info ]}
-                        elif url_info not in new_versions[ version_curr ]['urls']:
-                            new_versions[ version_curr ]['urls'].append(url_info)
+                        else:
+                            urls = list(map(lambda x: x['full'], new_versions[ version_curr ]['urls']))
+                            if url_filename not in urls:
+                                new_versions[ version_curr ]['urls'].append(url_info)
+                            elif scheme not in new_versions[ version_curr ]['urls'][ urls.index(url_filename) ]['schemes']:
+                                new_versions[ version_curr ]['urls'][ urls.index(url_filename) ]['schemes'].append(scheme)
 
         new_versions = collections.OrderedDict(sorted(new_versions.items(), key=lambda x: parse_version(x[0]), reverse=True))
 
