@@ -420,6 +420,10 @@ class SearchUpdate(object):
             url_to_request = 'https://www.googleapis.com/storage/v1/b/google-code-archive/o/v2%2Fcode.google.com%2F' + project + '%2Fdownloads-page-' + str(depth + 1) + '.json?alt=media&stripTrailingSlashes=false'
 
 
+        # Stop if depth > path len
+        if depth >= len(path_splitted):
+            return None
+
         # Remove depth path
         if not url_to_request:
             if depth > 0:
@@ -447,10 +451,6 @@ class SearchUpdate(object):
 
             url_to_request_base = 'https://sourceforge.net'
             path_splitted = ['', 'projects'] + path_splitted[2:3] + ['files'] + path_splitted[3:]
-
-        else:
-            if len(path_splitted) < 2:
-                return None
 
         # If url_to_request was not defined in specific case
         if not url_to_request:
@@ -557,10 +557,7 @@ class SearchUpdate(object):
             # Check home page
             home_page = self._parser.get_var_values('HOMEPAGE')
             if home_page:
-                home_page_p = urlparse(home_page[0])
-                home_page = home_page[0]
-                if home_page_p.path == '':
-                    home_page += '/'
+                home_page = home_page[0].rstrip('/')
                 self.print("Search in home page")
                 self._get_url_data(home_page, 0)
 
