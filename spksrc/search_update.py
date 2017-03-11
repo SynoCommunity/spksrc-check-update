@@ -238,7 +238,12 @@ class SearchUpdate(object):
                 return None
         else:
             # Get content page on HTTP
-            req = requests.get(url, allow_redirects=True)
+            try:
+                req = requests.get(url, allow_redirects=True)
+            except:
+                # Catch server not found
+                self.print('Error to download page: ' + url)
+                return None
 
             # If code 200
             if req.status_code == requests.codes.ok:
