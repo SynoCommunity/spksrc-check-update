@@ -412,12 +412,10 @@ class SearchUpdate(object):
         # Adapt URL to request before remove depth path
         url_to_request = None
         if url_p.netloc == 'github.com':
-
             # For Github, get releases and tags directories
             directories = ['releases', 'tags']
             if depth >= len(directories):
                 return None
-
             if path_splitted[1] == 'downloads':
                 path_splitted.remove('downloads')
                 url_to_request = url_to_request_base + '/'.join(path_splitted) + '/' + directories[depth]
@@ -427,15 +425,17 @@ class SearchUpdate(object):
         elif url_p.netloc == 'files.pythonhosted.org':
             if depth > 0:
                 return None
-
             # For files.pythonhosted.org, get the package information
             url_to_request = 'https://pypi.python.org/pypi/' + path_splitted[-1]
 
         elif url_p.netloc.endswith('.googlecode.com'):
-
             # For .googlecode.com, get pages of files list
             project = url_p.netloc[:-15]
             url_to_request = 'https://www.googleapis.com/storage/v1/b/google-code-archive/o/v2%2Fcode.google.com%2F' + project + '%2Fdownloads-page-' + str(depth + 1) + '.json?alt=media&stripTrailingSlashes=false'
+
+        elif url_p.netloc == 'launchpad.net':
+            if '+download' in path_splitted:
+                path_splitted.remove('+download')
 
 
         # Stop if depth > path len
