@@ -85,7 +85,9 @@ Options:
 
         new_versions = search_update.search_updates()
 
-        if new_versions:
+        if not new_versions or len(new_versions) == 0:
+            print("Error to find version for : "+package)
+        else:
             pprint.pprint(new_versions)
 
 

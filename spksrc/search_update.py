@@ -131,7 +131,7 @@ class SearchUpdate(object):
             remote.fetch()
             remote.pull()
 
-        new_versions = []
+        new_versions = collections.OrderedDict()
 
         tags = repo.tags
         if len(tags) > 0:
@@ -141,12 +141,12 @@ class SearchUpdate(object):
             for c in repo.iter_commits(git_hash + '..HEAD'):
                 tag = next((tag for tag in repo.tags if tag.commit == c), None)
                 if tag is not None:
-                    new_versions.append({'hash': str(tag)})
+                    new_versions[ str(tag) ] = {'hash': str(tag)}
         else:
             # No tags: list new commits
             self.print("No tags: Get new versions from commits")
             for c in repo.iter_commits(git_hash + '..HEAD'):
-                new_versions.append({'hash': str(c)})
+                new_versions[ str(c) ] = {'hash': str(c)}
 
         return new_versions
 
@@ -197,15 +197,16 @@ class SearchUpdate(object):
         self.print("Update svn")
         repo.update()
 
-        new_versions = []
+        new_versions = collections.OrderedDict()
 
         # Get new revision in /tags repository
         self.print("Get new revisions in /tags directory")
         tags_rev = repo.log_default(None, None, None, '^/tags', None, svn_rev_next, None)
         for rev in tags_rev:
-            new_versions.insert(0, {'rev': str(rev.revision)})
+            new_versions[ str(rev.revision) ] = {'rev': str(rev.revision)}
 
-        return new_versions
+        # Return in reversed order
+        return collections.OrderedDict(reversed(list(new_versions.items())))
 
     def _download_content(self, url):
         """ Download the content of an url (HHTP or FTP)
@@ -345,7 +346,7 @@ class SearchUpdate(object):
                 domains.append(data['url_p'].netloc)
 
         # Regex for href attribute
-        regex_version_href = re.compile('(([0-9]+)(\.([0-9]+))+(-[a-zA-Z0-9_]+)*)/(\w+.(html|php))?$')
+        regex_version_href = re.compile('(([0-9]+)(\.([0-9]+))+(-[a-zA-Z0-9_]+)*)(/(\w+.(html|php))?)?$')
         # Regex for tag content
         regex_version_content = re.compile('^(([0-9]+)(\.([0-9]+))+(-[a-zA-Z0-9_]+))*$')
 
@@ -561,6 +562,13 @@ class SearchUpdate(object):
                 self.print("Search in home page")
                 self._get_url_data(home_page, 0)
 
+            # Check download page
+            home_page = self._parser.get_var_values('DOWNLOAD_PAGE')
+            if home_page:
+                home_page = home_page[0].rstrip('/')
+                self.print("Search in download page")
+                self._get_url_data(home_page, 0)
+
 
             # Check for download URL in the page
             #download_urls = self._search_download_urls()
@@ -628,11 +636,12 @@ class SearchUpdate(object):
                             elif scheme not in new_versions[ version_curr ]['urls'][ urls.index(url_filename) ]['schemes']:
                                 new_versions[ version_curr ]['urls'][ urls.index(url_filename) ]['schemes'].append(scheme)
 
+        # Sort by version desc
         new_versions = collections.OrderedDict(sorted(new_versions.items(), key=lambda x: parse_version(x[0]), reverse=True))
 
         # Remove current version
-        if self._version in new_versions.keys():
-            del new_versions[ self._version ]
+        #if self._version in new_versions.keys():
+        #    del new_versions[ self._version ]
 
         return new_versions
 
