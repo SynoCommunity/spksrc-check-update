@@ -16,8 +16,7 @@ import requests
 from ftplib import FTP
 import json
 
-from urllib.parse import urlparse
-from urllib.parse import ParseResult
+from urllib.parse import urlparse, ParseResult, unquote
 from pkg_resources import parse_version
 from bs4 import BeautifulSoup
 
@@ -618,7 +617,7 @@ class SearchUpdate(object):
         new_versions = {}
         for url, data in self._urls_downloaded.items():
             for href in data['hrefs']:
-                match = regex_filename.search(href['href_p'].path)
+                match = regex_filename.search(unquote(href['href_p'].path))
                 if match:
                     m = match.groups()
                     version_curr = m[1].replace('_', '.')
@@ -643,7 +642,7 @@ class SearchUpdate(object):
                         if scheme == '':
                             scheme = 'https'
 
-                        url_info = {'filename': m[0], 'extensions': m[-2], 'full': url_filename, 'schemes': [scheme]}
+                        url_info = {'filename': unquote(m[0]), 'extensions': m[-2], 'full': unquote(url_filename), 'schemes': [scheme]}
                         if version_curr not in new_versions:
                             new_versions[ version_curr ] = {'version': version_curr, 'is_prerelease': version_curr_p.is_prerelease, 'urls': [ url_info ]}
                         else:
