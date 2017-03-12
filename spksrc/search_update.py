@@ -14,6 +14,7 @@ import svn.remote
 import svn.local
 import requests
 from ftplib import FTP
+import json
 
 from urllib.parse import urlparse
 from urllib.parse import ParseResult
@@ -208,13 +209,12 @@ class SearchUpdate(object):
         # Return in reversed order
         return collections.OrderedDict(reversed(list(new_versions.items())))
 
-    def _download_content(self, url):
+    def _download_content(self, url, old_url):
         """ Download the content of an url (HHTP or FTP)
         For FTP, return the list of directories and files.
         For HTTP, return the content and href attribute of 'a' tag
         Return a dict with scheme, url, url parsed and hrefs found
         """
-        url = url.rstrip('/')
         url_p = urlparse(url)
 
         hrefs = None
@@ -281,11 +281,28 @@ class SearchUpdate(object):
                 if len(content_filtered) > 0:
                     content = content_filtered
 
-                soup = BeautifulSoup(content, "html5lib")
-                for item in soup.find_all("a"):
-                    href = item.get('href')
-                    if href:
-                        hrefs.append({'href': href, 'href_p': urlparse(href), 'content': str(item.next).strip()})
+                # Get page extension
+                parts = url_p.path.split('/')[-1].split('.')
+                ext = ''
+                if len(parts) > 1:
+                    ext = parts[-1]
+
+                # When it is a JSON file
+                if ext == 'json':
+                    j = json.loads(content)
+                    if url_p.netloc == 'www.googleapis.com':
+                        old_url_p = urlparse(old_url)
+                        project = old_url_p.netloc[:-15]
+                        base_url = 'http://' + project + '.googlecode.com/files/'
+                        for info in j['downloads']:
+                            href = base_url + info['filename']
+                            hrefs.append({'href': href, 'href_p': urlparse(href), 'content': ''})
+                else:
+                    soup = BeautifulSoup(content, "html5lib")
+                    for item in soup.find_all("a"):
+                        href = item.get('href')
+                        if href:
+                            hrefs.append({'href': href, 'href_p': urlparse(href), 'content': str(item.next).strip()})
             else:
                 # In case of code different to 200
                 self.print('Error to download page: ' + url)
@@ -464,7 +481,7 @@ class SearchUpdate(object):
 
         # Download page content
         self.print("Download url page: " + url_to_request)
-        content_request = self._download_content(url_to_request)
+        content_request = self._download_content(url_to_request, url)
 
         # In case of empty result, return None
         if not content_request:
