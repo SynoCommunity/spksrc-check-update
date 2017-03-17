@@ -30,7 +30,7 @@ class SearchUpdate(object):
     work_dir = 'work'
 
     # Delay to save cache
-    delay_cache = 24 * 3600
+    delay_cache = 24 * 3600 * 3
 
     def __init__(self, package, path):
         self._use_cache = True
@@ -363,9 +363,9 @@ class SearchUpdate(object):
                 domains.append(data['url_p'].netloc)
 
         # Regex for href attribute
-        regex_version_href = re.compile('(([0-9]+)(\.([0-9]+))+(-[a-zA-Z0-9_]+)*)(/(\w+.(html|php))?)?$')
+        regex_version_href = re.compile('(([0-9]+)([._-]([0-9][0-9a-zA-Z]*))+(-[a-zA-Z0-9_]+)*)(/(\w+.(html|php))?)?$')
         # Regex for tag content
-        regex_version_content = re.compile('^(([0-9]+)(\.([0-9]+))+(-[a-zA-Z0-9_]+))*$')
+        regex_version_content = re.compile('^(([0-9]+)([._-]([0-9][0-9a-zA-Z]*))+(-[a-zA-Z0-9_]+))*$')
 
         urls = []
         for url, data in self._urls_downloaded.items():
@@ -381,8 +381,8 @@ class SearchUpdate(object):
                             match_content = regex_version_content.search(href['content'])
                             if match_content:
                                 version = parse_version(match_content.group(1))
-                if version and version > self._version_p:
-                    _LOGGER.debug("_search_version_urls: regex-search: %s, %s" % (href['href_p'].path, href['content'],))
+                if version and version >= self._version_p:
+                    _LOGGER.warn("_search_version_urls: regex-search: %s, %s" % (href['href_p'].path, href['content'],))
 
                     # Create full link
                     url_found = ''
@@ -400,7 +400,7 @@ class SearchUpdate(object):
         return urls
 
 
-    def _get_url_data(self, url, depth = 0):
+    def _get_url_data(self, url, depth = 0, can_remove_version = True):
         """ Get data for an url.
         Depth define the path to remove from the url
         """
@@ -438,7 +438,7 @@ class SearchUpdate(object):
                 path_splitted.remove('+download')
 
         # If path contains version, increment depth
-        if self._version in path_splitted:
+        if can_remove_version and self._version in path_splitted:
             depth += 1
 
 
@@ -518,7 +518,7 @@ class SearchUpdate(object):
         tmp_parser.evaluate_var('PKG_DIST_NAME')
         filename = tmp_parser.get_var_values('PKG_DIST_NAME')
 
-        regex_version = '([0-9]+((?P<sep>[._-])([0-9a-zA-Z]+))*(-[a-zA-Z0-9_]+)*)'
+        regex_version = '([0-9]+((?P<sep>[._-])([0-9][0-9a-zA-Z]*))*(-[a-zA-Z0-9_]+)*)'
         regex_filename_path = '(([\w/:]*)(' + re.escape(filename[0]).replace('XXXVERXXX', regex_version) + '))'
         regex_filename_path = re.sub('(\\\.tar\\\.lz|\\\.tar\\\.bz2|\\\.tar\\\.gz|\\\.tar\\\.xz|\\\.tar\\\.bz2|\\\.zip|\\\.rar|\\\.tgz|\\\.7z)', '\.(tar\.lz|tar\.bz2|tar\.gz|tar\.xz|tar\.bz2|zip|rar|tgz|7z)', regex_filename_path)
         _LOGGER.warn("_generate_regex_filename_path: regex_filename_path: %s" % (regex_filename_path,))
@@ -534,7 +534,7 @@ class SearchUpdate(object):
         tmp_parser.evaluate_var('PKG_DIST_NAME')
         filename = tmp_parser.get_var_values('PKG_DIST_NAME')
 
-        regex_version = '([0-9]+((?P<sep>[._-])([0-9a-zA-Z]+))*(-[a-zA-Z0-9_]+)*)'
+        regex_version = '([0-9]+((?P<sep>[._-])([0-9][0-9a-zA-Z]*))*(-[a-zA-Z0-9_]+)*)'
         regex_filename = '(' + re.escape(filename[0]).replace('XXXVERXXX', regex_version) + ')($|/)'
         regex_filename = re.sub('(\\\.tar\\\.lz|\\\.tar\\\.bz2|\\\.tar\\\.gz|\\\.tar\\\.xz|\\\.tar\\\.bz2|\\\.zip|\\\.rar|\\\.tgz|\\\.7z)', '\.(tar\.lz|tar\.bz2|tar\.gz|tar\.xz|tar\.bz2|zip|rar|tgz|7z)', regex_filename)
         _LOGGER.warn("_generate_regex_filename: regex_filename: %s" % (regex_filename,))
@@ -631,7 +631,7 @@ class SearchUpdate(object):
             if len(version_urls) > 0:
                 self.print("Found version link in page:")
                 for url in version_urls:
-                    self._get_url_data(url)
+                    self._get_url_data(url, 0, False)
 
             self.save_cache(path_file_cached, self._urls_downloaded)
         else:
