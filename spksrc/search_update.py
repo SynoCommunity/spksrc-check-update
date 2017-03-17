@@ -26,6 +26,9 @@ _LOGGER = logging.getLogger(__name__)
 
 class SearchUpdate(object):
 
+    # Regex pattern to match version
+    regex_version = '(?P<version>[0-9]+([._-][0-9][0-9a-zA-Z]*|[._-][0-9a-zA-Z]*[0-9])*(-[a-zA-Z0-9_]+)*)'
+
     # Work dir to save
     work_dir = 'work'
 
@@ -363,9 +366,9 @@ class SearchUpdate(object):
                 domains.append(data['url_p'].netloc)
 
         # Regex for href attribute
-        regex_version_href = re.compile('(([0-9]+)([._-]([0-9][0-9a-zA-Z]*))+(-[a-zA-Z0-9_]+)*)(/(\w+.(html|php))?)?$')
+        regex_version_href = re.compile('(([0-9]+)([._-]([0-9][0-9a-zA-Z]*|[0-9a-zA-Z]*[0-9]))+(-[a-zA-Z0-9_]+)*)(/(\w+.(html|php))?)?$')
         # Regex for tag content
-        regex_version_content = re.compile('^(([0-9]+)([._-]([0-9][0-9a-zA-Z]*))+(-[a-zA-Z0-9_]+))*$')
+        regex_version_content = re.compile('^(([0-9]+)([._-]([0-9][0-9a-zA-Z]*|[0-9a-zA-Z]*[0-9]))+(-[a-zA-Z0-9_]+))*$')
 
         urls = []
         for url, data in self._urls_downloaded.items():
@@ -518,9 +521,15 @@ class SearchUpdate(object):
         tmp_parser.evaluate_var('PKG_DIST_NAME')
         filename = tmp_parser.get_var_values('PKG_DIST_NAME')
 
-        regex_version = '([0-9]+((?P<sep>[._-])([0-9][0-9a-zA-Z]*))*(-[a-zA-Z0-9_]+)*)'
-        regex_filename_path = '(([\w/:]*)(' + re.escape(filename[0]).replace('XXXVERXXX', regex_version) + '))'
-        regex_filename_path = re.sub('(\\\.tar\\\.lz|\\\.tar\\\.bz2|\\\.tar\\\.gz|\\\.tar\\\.xz|\\\.tar\\\.bz2|\\\.zip|\\\.rar|\\\.tgz|\\\.7z)', '\.(tar\.lz|tar\.bz2|tar\.gz|tar\.xz|tar\.bz2|zip|rar|tgz|7z)', regex_filename_path)
+        regex_path =  '((([\w/:]*)))'
+        if 'XXXVERXXX' not in filename[0]:
+            tmp_parser.evaluate_var('PKG_DIST_SITE')
+            pkg_site_p = urlparse(tmp_parser.get_var_values('PKG_DIST_SITE')[0])
+            path = pkg_site_p.path.rstrip('/') + '/'
+            regex_path =  re.escape(path).replace('XXXVERXXX', SearchUpdate.regex_version)
+
+        regex_filename_path = '(' + regex_path + '(?P<filename>' + re.escape(filename[0]).replace('XXXVERXXX', SearchUpdate.regex_version) + '))'
+        regex_filename_path = re.sub('(\\\.tar\\\.lz|\\\.tar\\\.bz2|\\\.tar\\\.gz|\\\.tar\\\.xz|\\\.tar\\\.bz2|\\\.zip|\\\.rar|\\\.tgz|\\\.7z)', '\.(?P<extension>tar\.lz|tar\.bz2|tar\.gz|tar\.xz|tar\.bz2|zip|rar|tgz|7z)', regex_filename_path)
         _LOGGER.warn("_generate_regex_filename_path: regex_filename_path: %s" % (regex_filename_path,))
 
         return re.compile(regex_filename_path)
@@ -534,12 +543,9 @@ class SearchUpdate(object):
         tmp_parser.evaluate_var('PKG_DIST_NAME')
         filename = tmp_parser.get_var_values('PKG_DIST_NAME')
 
-        regex_version = '([0-9]+((?P<sep>[._-])([0-9][0-9a-zA-Z]*))*(-[a-zA-Z0-9_]+)*)'
-        regex_filename = '(' + re.escape(filename[0]).replace('XXXVERXXX', regex_version) + ')($|/)'
-        regex_filename = re.sub('(\\\.tar\\\.lz|\\\.tar\\\.bz2|\\\.tar\\\.gz|\\\.tar\\\.xz|\\\.tar\\\.bz2|\\\.zip|\\\.rar|\\\.tgz|\\\.7z)', '\.(tar\.lz|tar\.bz2|tar\.gz|tar\.xz|tar\.bz2|zip|rar|tgz|7z)', regex_filename)
+        regex_filename = '(?P<filename>' + re.escape(filename[0]).replace('XXXVERXXX', SearchUpdate.regex_version) + ')($|/)'
+        regex_filename = re.sub('(\\\.tar\\\.lz|\\\.tar\\\.bz2|\\\.tar\\\.gz|\\\.tar\\\.xz|\\\.tar\\\.bz2|\\\.zip|\\\.rar|\\\.tgz|\\\.7z)', '\.(?P<extension>tar\.lz|tar\.bz2|tar\.gz|tar\.xz|tar\.bz2|zip|rar|tgz|7z)', regex_filename)
         _LOGGER.warn("_generate_regex_filename: regex_filename: %s" % (regex_filename,))
-
-        return re.compile(regex_filename)
 
         return re.compile(regex_filename)
 
@@ -650,11 +656,13 @@ class SearchUpdate(object):
             for href in data['hrefs']:
                 match = regex_filename.search(unquote(href['href_p'].path))
                 if match:
-                    m = match.groups()
-                    version_curr = m[1].replace('_', '.')
-                    version_curr_p = parse_version(version_curr)
+                    try:
+                        version_curr = match.group('version').replace('_', '.')
+                        version_curr_p = parse_version(version_curr)
+                    except:
+                        version_curr = None
                     # Keep current version to avoid to search in content
-                    if version_curr_p >= self._version_p:
+                    if version_curr and version_curr_p >= self._version_p:
                         scheme = ''
                         url_filename = '//'
                         if len(href['href_p'].netloc) > 0:
@@ -673,7 +681,7 @@ class SearchUpdate(object):
                         if scheme == '':
                             scheme = 'https'
 
-                        url_info = {'filename': unquote(m[0]), 'extensions': m[-2], 'full': unquote(url_filename), 'schemes': [scheme]}
+                        url_info = {'filename': unquote(match.group('filename')), 'extensions': match.group('extension'), 'full': unquote(url_filename), 'schemes': [scheme]}
                         if version_curr not in new_versions:
                             new_versions[ version_curr ] = {'version': version_curr, 'is_prerelease': version_curr_p.is_prerelease, 'urls': [ url_info ]}
                         else:
@@ -689,41 +697,40 @@ class SearchUpdate(object):
             regex_filename_path = self._generate_regex_filename_path()
             for url, data in self._urls_downloaded.items():
                 if len(data['content']) > 0:
-                    matches = regex_filename_path.findall(data['content'])
-                    if matches:
-                        for m in matches:
-                            version_curr = m[3].replace('_', '.')
-                            version_curr_p = parse_version(version_curr)
-                            href = m[0]
-                            href_p = urlparse(href)
-                            if version_curr_p > self._version_p:
-                                scheme = ''
-                                url_filename = '//'
-                                if len(href_p.netloc) > 0:
-                                    scheme = href_p.scheme
-                                    url_filename += href_p.netloc
-                                else:
-                                    scheme =  data['url_p'].scheme
-                                    url_filename += data['url_p'].netloc
+                    for match in regex_filename_path.finditer(data['content']):
+                        version_curr = match.group('version').replace('_', '.')
+                        version_curr_p = parse_version(version_curr)
+                        href = str(match.group(0))
+                        href_p = urlparse(href)
+                        if version_curr_p >= self._version_p:
+                            scheme = ''
+                            url_filename = '//'
+                            if len(href_p.netloc) > 0:
+                                scheme = href_p.scheme
+                                url_filename += href_p.netloc
+                            else:
+                                scheme =  data['url_p'].scheme
+                                url_filename += data['url_p'].netloc
 
-                                url_filename = url_filename + '/'
-                                if href_p.path[0] != '/':
-                                    url_filename += data['url_p'].path.strip('/') + '/'
+                            url_filename = url_filename + '/'
+                            if href_p.path[0] != '/':
+                                url_filename += data['url_p'].path.strip('/') + '/'
 
-                                url_filename += href_p.path
+                            url_filename += href_p.path
 
-                                if scheme == '':
-                                    scheme = 'https'
+                            if scheme == '':
+                                scheme = 'https'
 
-                                url_info = {'filename': unquote(m[2]), 'extensions': m[-1], 'full': unquote(url_filename), 'schemes': [scheme]}
-                                if version_curr not in new_versions:
-                                    new_versions[ version_curr ] = {'version': version_curr, 'is_prerelease': version_curr_p.is_prerelease, 'urls': [ url_info ]}
-                                else:
-                                    urls = list(map(lambda x: x['full'], new_versions[ version_curr ]['urls']))
-                                    if url_filename not in urls:
-                                        new_versions[ version_curr ]['urls'].append(url_info)
-                                    elif scheme not in new_versions[ version_curr ]['urls'][ urls.index(url_filename) ]['schemes']:
-                                        new_versions[ version_curr ]['urls'][ urls.index(url_filename) ]['schemes'].append(scheme)
+                            url_info = {'filename': unquote(match.group('filename')), 'extensions': match.group('extension'), 'full': unquote(url_filename), 'schemes': [scheme]}
+                            if version_curr not in new_versions:
+                                new_versions[ version_curr ] = {'version': version_curr, 'is_prerelease': version_curr_p.is_prerelease, 'urls': [ url_info ]}
+                            else:
+                                urls = list(map(lambda x: x['full'], new_versions[ version_curr ]['urls']))
+                                if url_filename not in urls:
+                                    new_versions[ version_curr ]['urls'].append(url_info)
+                                elif scheme not in new_versions[ version_curr ]['urls'][ urls.index(url_filename) ]['schemes']:
+                                    new_versions[ version_curr ]['urls'][ urls.index(url_filename) ]['schemes'].append(scheme)
+
 
         # Sort by version desc
         new_versions = collections.OrderedDict(sorted(new_versions.items(), key=lambda x: parse_version(x[0]), reverse=True))
