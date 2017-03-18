@@ -243,7 +243,10 @@ class SearchUpdate(object):
         else:
             # Get content page on HTTP
             try:
-                req = requests.get(url, allow_redirects=True)
+                headers = {
+                    'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:52.0) Gecko/20100101 Firefox/52.0'
+                }
+                req = requests.get(url, allow_redirects=True, headers=headers)
             except:
                 # Catch server not found
                 self.print('Error to download page: ' + url)
