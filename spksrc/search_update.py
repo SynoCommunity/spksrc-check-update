@@ -385,7 +385,7 @@ class SearchUpdate(object):
                             if match_content:
                                 version = parse_version(match_content.group(1))
                 if version and version >= self._version_p:
-                    _LOGGER.warn("_search_version_urls: regex-search: %s, %s" % (href['href_p'].path, href['content'],))
+                    _LOGGER.debug("_search_version_urls: regex-search: %s, %s" % (href['href_p'].path, href['content'],))
 
                     # Create full link
                     url_found = ''
@@ -530,7 +530,7 @@ class SearchUpdate(object):
 
         regex_filename_path = '(' + regex_path + '(?P<filename>' + re.escape(filename[0]).replace('XXXVERXXX', SearchUpdate.regex_version) + '))'
         regex_filename_path = re.sub('(\\\.tar\\\.lz|\\\.tar\\\.bz2|\\\.tar\\\.gz|\\\.tar\\\.xz|\\\.tar\\\.bz2|\\\.zip|\\\.rar|\\\.tgz|\\\.7z)', '\.(?P<extension>tar\.lz|tar\.bz2|tar\.gz|tar\.xz|tar\.bz2|zip|rar|tgz|7z)', regex_filename_path)
-        _LOGGER.warn("_generate_regex_filename_path: regex_filename_path: %s" % (regex_filename_path,))
+        _LOGGER.debug("_generate_regex_filename_path: regex_filename_path: %s" % (regex_filename_path,))
 
         return re.compile(regex_filename_path)
 
@@ -545,7 +545,7 @@ class SearchUpdate(object):
 
         regex_filename = '(?P<filename>' + re.escape(filename[0]).replace('XXXVERXXX', SearchUpdate.regex_version) + ')($|/)'
         regex_filename = re.sub('(\\\.tar\\\.lz|\\\.tar\\\.bz2|\\\.tar\\\.gz|\\\.tar\\\.xz|\\\.tar\\\.bz2|\\\.zip|\\\.rar|\\\.tgz|\\\.7z)', '\.(?P<extension>tar\.lz|tar\.bz2|tar\.gz|tar\.xz|tar\.bz2|zip|rar|tgz|7z)', regex_filename)
-        _LOGGER.warn("_generate_regex_filename: regex_filename: %s" % (regex_filename,))
+        _LOGGER.debug("_generate_regex_filename: regex_filename: %s" % (regex_filename,))
 
         return re.compile(regex_filename)
 
