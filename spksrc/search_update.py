@@ -471,11 +471,18 @@ class SearchUpdate(object):
             path_splitted = ['', 'projects'] + path_splitted[1:2] + ['files'] + path_splitted[2:]
 
         elif url_p.netloc == 'downloads.sourceforge.net':
-            if len(path_splitted) < 3:
-                return None
+            if len(path_splitted) > 2 and path_splitted[1] == 'project':
+                if len(path_splitted) < 3:
+                    return None
 
-            url_to_request_base = 'https://sourceforge.net'
-            path_splitted = ['', 'projects'] + path_splitted[2:3] + ['files'] + path_splitted[3:]
+                url_to_request_base = 'https://sourceforge.net'
+                path_splitted = ['', 'projects'] + path_splitted[2:3] + ['files'] + path_splitted[3:]
+            else:
+                if len(path_splitted) < 2:
+                    return None
+
+                url_to_request_base = 'https://sourceforge.net'
+                path_splitted = ['', 'projects'] + path_splitted[1:2] + ['files'] + path_splitted[2:]
 
         # If url_to_request was not defined in specific case
         if not url_to_request:
@@ -734,10 +741,6 @@ class SearchUpdate(object):
 
         # Sort by version desc
         new_versions = collections.OrderedDict(sorted(new_versions.items(), key=lambda x: parse_version(x[0]), reverse=True))
-
-        # Remove current version
-        #if self._version in new_versions.keys():
-        #    del new_versions[ self._version ]
 
         return new_versions
 
