@@ -29,28 +29,36 @@ class SearchUpdate(object):
     # Regex pattern to match version
     regex_version = '(?P<version>[0-9]+([._-][0-9][0-9a-zA-Z]*|[._-][0-9a-zA-Z]*[0-9])*(-[a-zA-Z0-9_]+)*)'
 
-    # Work dir to save
-    work_dir = 'work'
+    # Default cache dir to save
+    default_cache_dir = 'cache'
 
     # Delay to save cache
-    delay_cache = 24 * 3600 * 3
+    default_cache_duration = 24 * 3600 * 3
 
     def __init__(self, package, path):
+        self._verbose = False
         self._use_cache = True
+        self._cache_duration = SearchUpdate.default_cache_duration
         self._package = package
         self._path = path
-        self._work_dir = os.path.join(SearchUpdate.work_dir, package)
+        self._cache_dir = os.path.join(SearchUpdate.default_cache_dir, package)
         self._urls_downloaded = {}
+        self._current_version = None
 
         _LOGGER.debug("__init__: path: %s" % (path,))
         self._parser = MakefileParser()
         self._parser.parse_file(path)
 
-
-    def print(self, message):
+    def log(self, message):
         """ Print a message with a prefix
         """
-        print("[" + self._package + "] " + message)
+        if self._verbose:
+            print("[" + self._package + "] " + message)
+
+    def set_verbose(self, verbose):
+        """ Define if versose mode
+        """
+        self._verbose = verbose
 
     def enable_cache(self):
         """ Enable cache
@@ -61,6 +69,11 @@ class SearchUpdate(object):
         """ Disable cache
         """
         self._use_cache = False
+
+    def set_cache_duration(self, cache_duration):
+        """ Set cache duration
+        """
+        self._cache_duration = cache_duration
 
     def save_cache(self, filename, data):
         """ Save cache in a file
@@ -73,6 +86,11 @@ class SearchUpdate(object):
         """
         with open(filename, 'rb') as f:
             return pickle.load(f)
+
+    def set_cache_dir(self, cache_dir):
+        """ Set cache directory
+        """
+        self._cache_dir = os.path.join(cache_dir, self._package)
 
     def get_url(self):
         """ Return URL from Makefile package
@@ -102,33 +120,34 @@ class SearchUpdate(object):
         url = self.get_url()
 
         # Temp path to clone reository
-        git_path = os.path.join(self._work_dir, 'git')
+        git_path = os.path.join(self._cache_dir, 'git')
         # Get current Hash of package
         git_hash = self._parser.get_var_values('PKG_GIT_HASH', ['master'])[0]
 
+        self._current_version = git_hash
         _LOGGER.info("Current git hash: %s" % (git_hash,))
 
         # State file to determine when the repository is cloned
-        git_is_cloned = os.path.join(self._work_dir, '.git_clone')
+        git_is_cloned = os.path.join(self._cache_dir, '.git_clone')
         if not os.path.exists(git_is_cloned):
             # Remove partial cloned dir
             if os.path.exists(git_path):
                 shutil.rmtree(git_path)
 
             # Clone repository
-            self.print("Clone repository: " + url)
+            self.log("Clone repository: " + url)
             try:
                 git.Repo.clone_from(url, git_path)
             except git.GitCommandError as exception:
-                self.print("Error to clone git")
+                self.log("Error to clone git")
                 return
 
             # Touch the state file
             open(git_is_cloned, 'w').close()
-            self.print("Repository cloned")
+            self.log("Repository cloned")
 
         # Fetch and pull
-        self.print("Fetch and pull git")
+        self.log("Fetch and pull git")
         repo = git.Repo(git_path)
         for remote in repo.remotes:
             remote.fetch()
@@ -139,7 +158,7 @@ class SearchUpdate(object):
         tags = repo.tags
         if len(tags) > 0:
             # Has tag: List new tags
-            self.print("Has tags: Get new versions from tags")
+            self.log("Has tags: Get new versions from tags")
             tags.sort(key=lambda t: t.commit.committed_datetime)
             for c in repo.iter_commits(git_hash + '..HEAD'):
                 tag = next((tag for tag in repo.tags if tag.commit == c), None)
@@ -147,7 +166,7 @@ class SearchUpdate(object):
                     new_versions[ str(tag) ] = {'hash': str(tag)}
         else:
             # No tags: list new commits
-            self.print("No tags: Get new versions from commits")
+            self.log("No tags: Get new versions from commits")
             for c in repo.iter_commits(git_hash + '..HEAD'):
                 new_versions[ str(c) ] = {'hash': str(c)}
 
@@ -159,7 +178,7 @@ class SearchUpdate(object):
         url = self.get_url()
 
         # Temp path to checkout reository
-        svn_path = os.path.join(self._work_dir, 'svn')
+        svn_path = os.path.join(self._cache_dir, 'svn')
         # Get current Revision of package
         svn_rev = self._parser.get_var_values('PKG_SVN_REV')
         # Get next revision
@@ -170,40 +189,40 @@ class SearchUpdate(object):
         else:
             svn_rev = 'HEAD'
 
-
-        self.print("Current svn revision: " + svn_rev)
+        self._current_version = svn_rev
+        self.log("Current svn revision: " + svn_rev)
 
         # State file to determine when the repository is checkout
-        svn_is_checkout = os.path.join(self._work_dir, '.svn_checkout')
+        svn_is_checkout = os.path.join(self._cache_dir, '.svn_checkout')
         if not os.path.exists(svn_is_checkout):
             # Delete partial checkout dir
             if os.path.exists(svn_path):
                 shutil.rmtree(svn_path)
 
             # Checkout repository
-            self.print("Checkout repository: " + url)
+            self.log("Checkout repository: " + url)
             try:
                 repo = svn.remote.RemoteClient(url)
                 repo.checkout(svn_path)
             except:
-                self.print("Error to checkout svn")
+                self.log("Error to checkout svn")
                 return
 
             # Touch the state file
             open(svn_is_checkout, 'w').close()
-            self.print("Repository checkout")
+            self.log("Repository checkout")
 
 
         repo = svn.local.LocalClient(svn_path)
 
         # Update repository
-        self.print("Update svn")
+        self.log("Update svn")
         repo.update()
 
         new_versions = collections.OrderedDict()
 
         # Get new revision in /tags repository
-        self.print("Get new revisions in /tags directory")
+        self.log("Get new revisions in /tags directory")
         tags_rev = repo.log_default(None, None, None, '^/tags', None, svn_rev_next, None)
         for rev in tags_rev:
             new_versions[ str(rev.revision) ] = {'rev': str(rev.revision)}
@@ -212,7 +231,7 @@ class SearchUpdate(object):
         return collections.OrderedDict(reversed(list(new_versions.items())))
 
     def _download_content(self, url, old_url):
-        """ Download the content of an url (HHTP or FTP)
+        """ Download the content of an url (HTTP or FTP)
         For FTP, return the list of directories and files.
         For HTTP, return the content and href attribute of 'a' tag
         Return a dict with scheme, url, url parsed and hrefs found
@@ -238,7 +257,7 @@ class SearchUpdate(object):
                         file += '/'
                     hrefs.append({'href': file, 'href_p': urlparse(file), 'content': ''})
             except:
-                self.print('Error to connect on FTP')
+                self.log('Error to connect on FTP')
                 return None
         else:
             # Get content page on HTTP
@@ -249,7 +268,7 @@ class SearchUpdate(object):
                 req = requests.get(url, allow_redirects=True, headers=headers)
             except:
                 # Catch server not found
-                self.print('Error to download page: ' + url)
+                self.log('Error to download page: ' + url)
                 return None
 
             # If code 200
@@ -284,7 +303,7 @@ class SearchUpdate(object):
                     if soup_find:
                         content_filtered += str(soup_find)
 
-                if len(content_filtered) > 0:
+                if content_filtered:
                     content = content_filtered
 
                 # Get page extension
@@ -293,7 +312,7 @@ class SearchUpdate(object):
                 if len(parts) > 1:
                     ext = parts[-1]
 
-                # When it is a JSON file
+                # When this is a JSON file
                 if ext == 'json':
                     j = json.loads(content)
                     if url_p.netloc == 'www.googleapis.com':
@@ -311,7 +330,7 @@ class SearchUpdate(object):
                             hrefs.append({'href': href, 'href_p': urlparse(href), 'content': str(item.next).strip()})
             else:
                 # In case of code different to 200
-                self.print('Error to download page: ' + url)
+                self.log('Error to download page: ' + url)
                 return None
 
         return {'type': url_p.scheme, 'url': url, 'url_p': url_p, 'hrefs': hrefs, 'history': history, 'content': content}
@@ -435,7 +454,7 @@ class SearchUpdate(object):
             url_to_request = 'https://pypi.python.org/pypi/' + path_splitted[-1]
 
         elif url_p.netloc.endswith('.googlecode.com'):
-            # For .googlecode.com, get pages of files list
+            # For .googlecode.com, get JSON of files list
             project = url_p.netloc[:-15]
             url_to_request = 'https://www.googleapis.com/storage/v1/b/google-code-archive/o/v2%2Fcode.google.com%2F' + project + '%2Fdownloads-page-' + str(depth + 1) + '.json?alt=media&stripTrailingSlashes=false'
 
@@ -493,11 +512,11 @@ class SearchUpdate(object):
 
         # Avoid to download page more than one time
         if url_to_request in self._urls_downloaded:
-            self.print("Url page already download: " + url_to_request)
+            self.log("Url page already download: " + url_to_request)
             return None
 
         # Download page content
-        self.print("Download url page: " + url_to_request)
+        self.log("Download url page: " + url_to_request)
         content_request = self._download_content(url_to_request, url)
 
         # In case of empty result, return None
@@ -512,7 +531,7 @@ class SearchUpdate(object):
         # Ex: Google Code redirect to github
         req_url_p = urlparse(content_request['url'])
         if len(content_request['history']) > 0 and (content_request['url_p'].netloc != req_url_p.netloc or content_request['url_p'].path != req_url_p.path):
-            self.print("Check redirection to: "+content_request['url'])
+            self.log("Check redirection to: "+content_request['url'])
             depth = 0
             while True:
                 text = self._get_url_data(content_request['url'], depth)
@@ -582,10 +601,11 @@ class SearchUpdate(object):
         self._version = self.get_version()
 
         if not self._version:
-            self.print('Error: No version found in the package !')
+            self.log('Error: No version found in the package !')
             return None
 
-        self.print("Current version: " + self._version)
+        self._current_version = self._version
+        self.log("Current version: " + self._version)
 
         self._version_p = parse_version(self._version)
 
@@ -593,13 +613,12 @@ class SearchUpdate(object):
         filename = url_splitted[-1]
         url = '/'.join(url_splitted[0:-1])
 
-        path_file_cached = os.path.join(self._work_dir, 'list.pkl')
+        path_file_cached = os.path.join(self._cache_dir, 'list.pkl')
 
         download = True
         if self._use_cache == True and os.path.exists(path_file_cached):
             mtime = os.path.getmtime(path_file_cached)
-            delay_cache = SearchUpdate.delay_cache
-            if (mtime + delay_cache) > time.time():
+            if (mtime + self._cache_duration) > time.time():
                 download = False
 
         if download:
@@ -613,7 +632,7 @@ class SearchUpdate(object):
             # Check home page
             home_page = self._parser.get_var_values('HOMEPAGE')
             if home_page:
-                self.print("Search in home page")
+                self.log("Search in home page")
                 depth = 0
                 while True:
                     check = self._get_url_data(home_page[0], depth)
@@ -624,7 +643,7 @@ class SearchUpdate(object):
             # Check download page
             download_page = self._parser.get_var_values('DOWNLOAD_PAGE')
             if download_page:
-                self.print("Search in download page")
+                self.log("Search in download page")
                 depth = 0
                 while True:
                     check = self._get_url_data(download_page[0], depth)
@@ -637,25 +656,25 @@ class SearchUpdate(object):
             #download_urls = self._search_download_urls()
             download_urls = []
             if len(download_urls) > 0:
-                self.print("Found download link in page:")
+                self.log("Found download link in page:")
                 for url in download_urls:
-                    self.print("Download link: " + url)
+                    self.log("Download link: " + url)
                     self._get_url_data(url)
 
             # Check for version URL in the page
             version_urls = self._search_version_urls()
             if len(version_urls) > 0:
-                self.print("Found version link in page:")
+                self.log("Found version link in page:")
                 for url in version_urls:
                     self._get_url_data(url, 0, False)
 
             self.save_cache(path_file_cached, self._urls_downloaded)
         else:
-            self.print("Use cached file: " + path_file_cached)
+            self.log("Use cached file: " + path_file_cached)
             self._urls_downloaded = self.load_cache(path_file_cached)
 
 
-        self.print("Check for filename in pages")
+        self.log("Check for filename in pages")
 
         # Get regex for filename
         regex_filename = self._generate_regex_filename()
@@ -748,23 +767,41 @@ class SearchUpdate(object):
         return new_versions
 
 
+    def _search_updates_wget(self):
+        """ Search wget method: Call common method
+        """
+        return self._search_updates_common()
+
+
     def search_updates(self):
 
-        if not os.path.exists(self._work_dir):
-            os.makedirs(self._work_dir)
+        if not os.path.exists(self._cache_dir):
+            os.makedirs(self._cache_dir)
 
         method = self._parser.get_var_values('PKG_DOWNLOAD_METHOD', ['common'])[0]
         func_name = '_search_updates_' + method
 
-        func = getattr(self, func_name)
-        return func()
+        versions = None
         try:
             func = getattr(self, func_name)
-            return func()
+            versions = func()
         except Exception as e:
             print(e)
             print('Method ' + func_name + ' has not found')
             return None
+
+        depends = self._parser.get_var_values('DEPENDS', [])
+        flatten = lambda l: [item for sublist in l for item in sublist]
+
+        # Split by space and flat the list
+        depends = set(flatten([depend.split() for depend in depends])) 
+
+        return {
+            "version": self._current_version,
+            "versions": versions,
+            "method": method,
+            "depends": depends
+        }
 
 
 

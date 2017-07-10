@@ -4,7 +4,10 @@ import sys
 import os
 import getopt
 import pprint
+from datetime import datetime
+import parsedatetime
 from spksrc.search_update import SearchUpdate
+from spksrc.package_builder import PackageBuilder
 
 
 
@@ -15,6 +18,11 @@ class MainApp(object):
         self._package = None
         self._verbose = False
         self._use_cache = True
+        self._update_deps = False
+        self._allow_major_release = False
+        self._allow_prerelease = False
+        self._cache_duration = 24 * 3600 * 7
+        self._work_dir = 'work'
 
     def help(self):
         print("""
@@ -24,11 +32,16 @@ Usage:
   main.py [options] -r <root>
 
 Options:
-  -h --help                     Show this screen.
-  -r --root=<root>              Root directory of spksrc
-  -p --package=<package>        Package to check update (Optional)
-  -c --verbose                  Verbose mode
-  -v --disable-cache            Disable cache
+  -h --help                        Show this screen.
+  -r --root=<root>                 Root directory of spksrc
+  -p --package=<package>           Package to check update (Optional)
+  -v --verbose                     Verbose mode
+  -c --disable-cache               Disable cache
+  -d --cache-duration=<duration>   Cache duration in seconds (Default: 3 days)
+  -w --work-dir=<directory>        Work directory (Default: work)
+  -m --allow-major-release         Allow to update to next major version (Default: False)
+  -a --allow-prerelease            Allow prerelease version (Default: False)
+  -u --update-deps                 Update deps before build the current package (Default: False)
 """)
 
     def check_spksc_dir(self):
@@ -39,15 +52,15 @@ Options:
         check = check & os.path.isdir(self._root + 'spk')
         check = check & os.path.isdir(self._root + 'toolchains')
 
-        return check;
+        return check
 
 
     def read_args(self):
         try:
-            opts, args = getopt.getopt(sys.argv[1:], "hcr:p:", ["root=", "package="])
-        except getopt.GetoptError as e:
+            opts, args = getopt.getopt(sys.argv[1:], "hcvaur:p:d:w:", ["root=", "package=", "cache-duration=", "work-dir=", "verbose", "disable-cache", "allow-prerelease", "update-deps"])
+        except getopt.GetoptError as error:
             self.help()
-            print(e)
+            print(error)
             sys.exit(2)
 
         for opt, arg in opts:
@@ -62,15 +75,28 @@ Options:
                 self._root = arg.rstrip(os.path.sep) + os.path.sep
             elif opt in ("-p", "--package"):
                 self._package = arg.strip(os.path.sep)
+            elif opt in ( "-d", "--cache-duration"):
+                cal = parsedatetime.Calendar()
+                date_now = datetime.now().replace(microsecond=0)
+                date, _ = cal.parseDT(arg, sourceTime=date_now)
+                self._cache_duration = (date - date_now).total_seconds()
+            elif opt in ("-w", "--work-dir"):
+                self._work_dir = arg.rstrip(os.path.sep)
+            elif opt in ("-m", "--allow-major-release"):
+                self._allow_major_release = True
+            elif opt in ("-a", "--allow-prerelease"):
+                self._allow_prerelease = True
+            elif opt in ("-u", "--update-deps"):
+                self._update_deps = True
 
 
     def find_makefile(self, path):
         result = []
         dirname = os.path.basename(path)
-        for file in os.listdir(path):
-            makefile = os.path.join(path, file, 'Makefile')
+        for filename in os.listdir(path):
+            makefile = os.path.join(path, filename, 'Makefile')
             if os.path.exists(makefile):
-                result.append([dirname + os.path.sep + file, makefile])
+                result.append([dirname + os.path.sep + filename, makefile])
 
         result.sort()
 
@@ -80,16 +106,34 @@ Options:
     def check_update_makefile(self, package, path):
         search_update = SearchUpdate(package, path)
 
-        if self._use_cache == False:
+        if not self._use_cache:
             search_update.disable_cache()
 
-        new_versions = search_update.search_updates()
+        search_update.set_cache_dir(os.path.join(self._work_dir, SearchUpdate.default_cache_dir))
+        search_update.set_cache_duration(self._cache_duration)
 
-        if not new_versions or len(new_versions) == 0:
-            print("Error to find version for : "+package)
+        if self._verbose:
+            search_update.set_verbose(True)
+
+        return search_update.search_updates()
+
+    def check_update_packages(self):
+        makefiles = None
+        if self._package is not None:
+            if not os.path.exists(self._root + self._package + os.path.sep + 'Makefile'):
+                self.help()
+                print("<package> " + self._package + " doesn't exist or it is not a valid spksrc package")
+                sys.exit(2)
+
+            makefiles = [[self._package, os.path.join(self._root, self._package, 'Makefile')]]
         else:
-            pprint.pprint(new_versions)
+           makefiles = self.find_makefile(self._root + 'cross') + self.find_makefile(self._root + 'native')
 
+        packages = {}
+        for makefile in makefiles:
+            packages[makefile[0]] = self.check_update_makefile(makefile[0], makefile[1])
+
+        return packages
 
     def main(self):
         """
@@ -103,26 +147,20 @@ Options:
             print("<root> is required")
             sys.exit(2)
 
-        if self.check_spksc_dir() == False:
+        if not self.check_spksc_dir():
             self.help()
             print("<root> have to be a root directory of spksrc")
             sys.exit(2)
 
+        packages = self.check_update_packages()
 
-        makefiles = None
-        if self._package is not None:
-            if not os.path.exists(self._root + self._package + os.path.sep + 'Makefile'):
-                self.help()
-                print("<package> " + self._package + " doesn't exist or it is not a valid spksrc package")
-                sys.exit(2)
+        builder = PackageBuilder(packages)
+        builder.set_spksrc_dir(os.path.join(self._work_dir, PackageBuilder.default_spksrc_dir))
+        if self._verbose:
+            builder.set_verbose(True)
 
-            makefiles = [[self._package, os.path.join(self._root, self._package, 'Makefile')]]
-        else:
-            makefiles = self.find_makefile(self._root + 'cross') + self.find_makefile(self._root + 'native')
-
-
-        for makefile in makefiles:
-            self.check_update_makefile(makefile[0], makefile[1])
+        builder.build()
+        #pprint.pprint(packages)
 
 if __name__ == '__main__':
     app = MainApp()

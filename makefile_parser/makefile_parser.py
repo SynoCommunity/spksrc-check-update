@@ -10,12 +10,16 @@ _LOGGER = logging.getLogger(__name__)
 class MakefileParser(object):
 
     def __init__(self):
+        """ Initialize the Makefile parser and private variables
+        """
         self._parser = self._get_parser()
         self._vars_not_evaluate = {}
         self._vars = {}
 
 
     def _get_parser(self):
+        """ Initialize the pyparsing parser for Makefile 
+        """
         assign = pp.oneOf(['=', '?=', ':=', '::=', '+='])('assign')
         var_name = pp.Word(pp.alphas+'_', pp.alphanums+'_')('var')
 
@@ -42,6 +46,8 @@ class MakefileParser(object):
 
 
     def _call_value(self, arguments, re_evaluate_values):
+        """ Execute the call $(value VAR) from Makefile
+        """
         if re_evaluate_values:
            self.evaluate_var(first_arg)
 
@@ -49,12 +55,16 @@ class MakefileParser(object):
 
 
     def _call_subst(self, arguments, re_evaluate_values):
+        """ Execute the call $(subst b,a,a b c d) from Makefile
+        """
         args = arguments.split(',')
 
         return args[2].replace(args[0], args[1])
 
 
     def parse_call(self, arguments, re_evaluate_values = False):
+        """ Parse the calls $(VAR) or $(xxx yyy zzz) and execute it
+        """
         arguments = arguments.strip()
 
         args = arguments.split(' ')
@@ -111,6 +121,8 @@ class MakefileParser(object):
 
 
     def _parse_line(self, line):
+        """ Parse one line of Makefile content
+        """
         result = self._parser.searchString(line)
 
         if len(result) > 0:
@@ -131,6 +143,8 @@ class MakefileParser(object):
 
 
     def parse_file(self, file):
+        """ Parse a Makefile file
+        """
         _LOGGER.debug("parse_file: file: %s" % (file,))
         file = open(file, "r")
         for line in file:
@@ -139,6 +153,8 @@ class MakefileParser(object):
 
 
     def parse_text(self, text):
+        """ Parse a Makefile content
+        """
         _LOGGER.debug("parse_text: text: %s" % (text,))
         lines = text.split('\n')
         for line in lines:
@@ -146,21 +162,29 @@ class MakefileParser(object):
 
 
     def del_vars_values(self):
+        """ Delete all variables parsed from the Makefile
+        """
         self._vars = {}
 
 
     def del_var_values(self, var):
+        """ Delete one variable parsed from the Makefile
+        """
         if var in self._vars:
             del self._vars[ var ]
 
 
     def get_var_values(self, var, default = None):
+        """ Get the values of a variable from the parsed Makefile
+        """
         if var in self._vars:
             return copy.copy(self._vars[ var ])
 
         return default
 
     def set_var_values(self, var, value, value_not_evaluate = None):
+        """ Set a value for a variable
+        """
         _LOGGER.debug("set_var_values: var: %s, value: %s" % (var,value,))
         if not value_not_evaluate:
             value_not_evaluate = value
@@ -175,6 +199,8 @@ class MakefileParser(object):
         self._vars[ var ] = value
 
     def evaluate_var(self, var):
+        """ Ask to re-evaluate the values of a variable by using the values of the others variables 
+        """
         _LOGGER.debug("evaluate_var: var: %s" % (var,))
         if var in self._vars_not_evaluate:
             self._vars[ var ] = []
