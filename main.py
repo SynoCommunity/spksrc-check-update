@@ -17,7 +17,7 @@ class MainApp(object):
 
     def __init__(self):
         self._root = None
-        self._package = None
+        self._packages = None
         self._verbose = False
         self._use_cache = True
         self._update_deps = False
@@ -37,7 +37,7 @@ Usage:
 Options:
   -h --help                        Show this screen.
   -r --root=<root>                 Root directory of spksrc
-  -p --package=<package>           Package to check update (Optional)
+  -p --packages=<package,package>  Packages to check for update (Optional)
   -v --verbose                     Verbose mode
   -c --disable-cache               Disable cache
   -d --cache-duration=<duration>   Cache duration in seconds (Default: 3 days)
@@ -60,8 +60,8 @@ Options:
 
     def read_args(self):
         try:
-            opts, args = getopt.getopt(sys.argv[1:], "hcvaur:p:d:w:j:", [
-                                       "root=", "package=", "cache-duration=", "work-dir=", "verbose", "disable-cache", "allow-prerelease", "update-deps", "jobs="])
+            opts, args = getopt.getopt(sys.argv[1:], "hcvmaur:p:d:w:j:", [
+                                       "root=", "packages=", "cache-duration=", "work-dir=", "verbose", "disable-cache", "allow-prerelease", "update-deps", "jobs="])
         except getopt.GetoptError as error:
             self.help()
             print(error)
@@ -77,8 +77,8 @@ Options:
                 self._use_cache = False
             elif opt in ("-r", "--root"):
                 self._root = arg.rstrip(os.path.sep) + os.path.sep
-            elif opt in ("-p", "--package"):
-                self._package = arg.strip(os.path.sep)
+            elif opt in ("-p", "--packages"):
+                self._packages = arg.strip(os.path.sep)
             elif opt in ("-d", "--cache-duration"):
                 cal = parsedatetime.Calendar()
                 date_now = datetime.now().replace(microsecond=0)
@@ -124,16 +124,18 @@ Options:
         return [package, search_update.search_updates()]
 
     def get_list_packages(self):
-        makefiles = None
-        if self._package is not None:
-            if not os.path.exists(self._root + self._package + os.path.sep + 'Makefile'):
-                self.help()
-                print("<package> " + self._package +
-                      " doesn't exist or it is not a valid spksrc package")
-                sys.exit(2)
+        makefiles = []
+        if self._packages is not None:
+            packages = self._packages.split(',')
+            for package in packages:
+                if not os.path.exists(self._root + package + os.path.sep + 'Makefile'):
+                    self.help()
+                    print("<package> " + package +
+                          " doesn't exist or it is not a valid spksrc package")
+                    sys.exit(2)
 
-            makefiles = [[self._package, os.path.join(
-                self._root, self._package, 'Makefile')]]
+                makefiles += [[package, os.path.join(
+                    self._root, package, 'Makefile')]]
         else:
             makefiles = self.find_makefile(
                 self._root + 'cross') + self.find_makefile(self._root + 'native')
@@ -173,7 +175,8 @@ Options:
 
         packages = self.check_update_packages()
 
-        builder = PackageBuilder(packages)
+        builder = PackageBuilder(packages, update_deps=self._update_deps,
+                                 allow_major_release=self._allow_major_release, allow_prerelease=self._allow_prerelease)
         builder.set_spksrc_dir(os.path.join(
             self._work_dir, PackageBuilder.default_spksrc_dir))
         if self._verbose:

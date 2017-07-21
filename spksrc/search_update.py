@@ -762,7 +762,7 @@ class SearchUpdate(object):
 
 
         # Sort by version desc
-        new_versions = collections.OrderedDict(sorted(new_versions.items(), key=lambda x: parse_version(x[0]), reverse=True))
+        new_versions = collections.OrderedDict(sorted(new_versions.items(), key=lambda x: parse_version(x[0]), reverse=False))
 
         return new_versions
 
