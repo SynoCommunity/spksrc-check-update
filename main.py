@@ -5,10 +5,12 @@ import os
 import getopt
 import pprint
 from datetime import datetime
+
 import parsedatetime
+import multiprocessing
+from multiprocessing import Pool
 from spksrc.search_update import SearchUpdate
 from spksrc.package_builder import PackageBuilder
-
 
 
 class MainApp(object):
@@ -23,6 +25,7 @@ class MainApp(object):
         self._allow_prerelease = False
         self._cache_duration = 24 * 3600 * 7
         self._work_dir = 'work'
+        self._nb_jobs = multiprocessing.cpu_count()
 
     def help(self):
         print("""
@@ -42,6 +45,7 @@ Options:
   -m --allow-major-release         Allow to update to next major version (Default: False)
   -a --allow-prerelease            Allow prerelease version (Default: False)
   -u --update-deps                 Update deps before build the current package (Default: False)
+  -j --jobs                        Number of jobs (Default: CPU core)
 """)
 
     def check_spksc_dir(self):
@@ -54,10 +58,10 @@ Options:
 
         return check
 
-
     def read_args(self):
         try:
-            opts, args = getopt.getopt(sys.argv[1:], "hcvaur:p:d:w:", ["root=", "package=", "cache-duration=", "work-dir=", "verbose", "disable-cache", "allow-prerelease", "update-deps"])
+            opts, args = getopt.getopt(sys.argv[1:], "hcvaur:p:d:w:j:", [
+                                       "root=", "package=", "cache-duration=", "work-dir=", "verbose", "disable-cache", "allow-prerelease", "update-deps", "jobs="])
         except getopt.GetoptError as error:
             self.help()
             print(error)
@@ -75,7 +79,7 @@ Options:
                 self._root = arg.rstrip(os.path.sep) + os.path.sep
             elif opt in ("-p", "--package"):
                 self._package = arg.strip(os.path.sep)
-            elif opt in ( "-d", "--cache-duration"):
+            elif opt in ("-d", "--cache-duration"):
                 cal = parsedatetime.Calendar()
                 date_now = datetime.now().replace(microsecond=0)
                 date, _ = cal.parseDT(arg, sourceTime=date_now)
@@ -88,7 +92,8 @@ Options:
                 self._allow_prerelease = True
             elif opt in ("-u", "--update-deps"):
                 self._update_deps = True
-
+            elif opt in ("-j", "--jobs"):
+                self._nb_jobs = max(int(arg), 1)
 
     def find_makefile(self, path):
         result = []
@@ -102,36 +107,50 @@ Options:
 
         return result
 
-
-    def check_update_makefile(self, package, path):
+    def check_update_makefile(self, makefile):
+        package, path = makefile
         search_update = SearchUpdate(package, path)
 
         if not self._use_cache:
             search_update.disable_cache()
 
-        search_update.set_cache_dir(os.path.join(self._work_dir, SearchUpdate.default_cache_dir))
+        search_update.set_cache_dir(os.path.join(
+            self._work_dir, SearchUpdate.default_cache_dir))
         search_update.set_cache_duration(self._cache_duration)
 
         if self._verbose:
             search_update.set_verbose(True)
 
-        return search_update.search_updates()
+        return [package, search_update.search_updates()]
 
-    def check_update_packages(self):
+    def get_list_packages(self):
         makefiles = None
         if self._package is not None:
             if not os.path.exists(self._root + self._package + os.path.sep + 'Makefile'):
                 self.help()
-                print("<package> " + self._package + " doesn't exist or it is not a valid spksrc package")
+                print("<package> " + self._package +
+                      " doesn't exist or it is not a valid spksrc package")
                 sys.exit(2)
 
-            makefiles = [[self._package, os.path.join(self._root, self._package, 'Makefile')]]
+            makefiles = [[self._package, os.path.join(
+                self._root, self._package, 'Makefile')]]
         else:
-           makefiles = self.find_makefile(self._root + 'cross') + self.find_makefile(self._root + 'native')
+            makefiles = self.find_makefile(
+                self._root + 'cross') + self.find_makefile(self._root + 'native')
+
+        return makefiles
+
+    def check_update_packages(self):
+
+        makefiles = self.get_list_packages()
+
+        pool = Pool(processes=self._nb_jobs)
+
+        packages_list = pool.map(self.check_update_makefile, makefiles)
 
         packages = {}
-        for makefile in makefiles:
-            packages[makefile[0]] = self.check_update_makefile(makefile[0], makefile[1])
+        for package in packages_list:
+            packages[package[0]] = package[1]
 
         return packages
 
@@ -155,12 +174,14 @@ Options:
         packages = self.check_update_packages()
 
         builder = PackageBuilder(packages)
-        builder.set_spksrc_dir(os.path.join(self._work_dir, PackageBuilder.default_spksrc_dir))
+        builder.set_spksrc_dir(os.path.join(
+            self._work_dir, PackageBuilder.default_spksrc_dir))
         if self._verbose:
             builder.set_verbose(True)
 
         builder.build()
-        #pprint.pprint(packages)
+        # pprint.pprint(packages)
+
 
 if __name__ == '__main__':
     app = MainApp()

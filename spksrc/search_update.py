@@ -777,6 +777,14 @@ class SearchUpdate(object):
 
         if not os.path.exists(self._cache_dir):
             os.makedirs(self._cache_dir)
+        path_file_cached = os.path.join(self._cache_dir, 'result.pkl')
+
+        if self._use_cache == True and os.path.exists(path_file_cached):
+            mtime = os.path.getmtime(path_file_cached)
+            if (mtime + self._cache_duration) > time.time():
+                self.log("Use cached file: " + path_file_cached)
+                return self.load_cache(path_file_cached)
+
 
         method = self._parser.get_var_values('PKG_DOWNLOAD_METHOD', ['common'])[0]
         func_name = '_search_updates_' + method
@@ -796,12 +804,15 @@ class SearchUpdate(object):
         # Split by space and flat the list
         depends = set(flatten([depend.split() for depend in depends])) 
 
-        return {
+        result = {
             "version": self._current_version,
             "versions": versions,
             "method": method,
             "depends": depends
         }
 
+        self.save_cache(path_file_cached, result)
+
+        return result
 
 
