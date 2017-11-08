@@ -174,6 +174,11 @@ class MakefileParser(object):
             del self._vars[ var ]
 
 
+    def get_vars_values(self):
+        """ Get the values of all variables from the parsed Makefile
+        """
+        return copy.copy(self._vars)
+
     def get_var_values(self, var, default = None):
         """ Get the values of a variable from the parsed Makefile
         """

@@ -83,7 +83,7 @@ class PackageBuilder(object):
 
     def create_deps_tree(self):
         for package_name, package in self._packages.items():
-            for dep in package['depends']:
+            for dep in package['all_depends']:
                 if dep not in self._packages:
                     self.log("Package " + dep + " is not found")
                     break
@@ -189,7 +189,7 @@ class PackageBuilder(object):
                 self.log(package + " " + self._packages[package]['version'])
             else:
                 self.log(package)
-            # pprint.pprint(self._packages[package])
-            version = self.get_new_version(package)
-            if version:
-                pprint.pprint(version)
+            pprint.pprint(self._packages[package])
+            #version = self.get_new_version(package)
+            #if version:
+            #    pprint.pprint(version)

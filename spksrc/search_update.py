@@ -799,16 +799,22 @@ class SearchUpdate(object):
             return None
 
         depends = self._parser.get_var_values('DEPENDS', [])
+        build_depends = self._parser.get_var_values('BUILD_DEPENDS', [])
+
         flatten = lambda l: [item for sublist in l for item in sublist]
 
         # Split by space and flat the list
         depends = set(flatten([depend.split() for depend in depends])) 
+        build_depends = set(flatten([depend.split() for depend in build_depends]))
+        all_depends = depends.union(build_depends)
 
         result = {
             "version": self._current_version,
             "versions": versions,
             "method": method,
-            "depends": depends
+            "depends": depends,
+            "build_depends": build_depends,
+            "all_depends": all_depends
         }
 
         self.save_cache(path_file_cached, result)
