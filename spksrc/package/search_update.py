@@ -21,6 +21,7 @@ from pkg_resources import parse_version
 from bs4 import BeautifulSoup
 
 from makefile_parser.makefile_parser import MakefileParser
+from spksrc.tools import Tools
 
 _LOGGER = logging.getLogger(__name__)
 

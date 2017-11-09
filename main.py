@@ -22,7 +22,13 @@ class MainApp(object):
 Script to gather search update for spksrc package in cross/ and native/.
 
 Usage:
-  main.py [options] -r <root>
+  main.py [options] -r <root> [action]
+
+Action:
+  - search: Search for new updates
+  - build: Launch build for the new packages
+  - print_deps: Prints all dependancies
+  - print_parent_deps: Prints all parent dependancies
 
 Parameters:
   -h --help                        Show this screen.
@@ -37,6 +43,7 @@ Parameters:
   -u --update-deps                 Update deps before build the current package (Default: False)
   -j --jobs                        Number of jobs (Default: max CPU core)
   -o --option "<key>=<value>"      Set an option
+  -b --build                       Launch the build for packages updated
 
 Available options:
   - packages
@@ -48,6 +55,23 @@ Available options:
   - cache_duration
   - work_dir
   - nb_jobs
+
+Examples:
+
+  - Search news version for ALL packages:
+        python main.py -r ../spksrc search
+
+  - Launch build for the new release of ffmpeg:
+        python main.py -r ../spksrc -p cross/ffmpeg build
+
+  - Launch build for the new release of zlib and ffmpeg:
+        python main.py -r ../spksrc -p cross/zlib,cross/ffmpeg build
+
+  - Launch build for the new major release of ffmpeg:
+        python main.py -r ../spksrc -p cross/ffmpeg --allow-major-release build
+
+  - Launch build for the new release of ffmpeg and all its dependencies:
+        python main.py -r ../spksrc -p cross/ffmpeg --allow-prerelease build
 
 """)
 
@@ -89,6 +113,8 @@ Available options:
             elif opt in ("-j", "--jobs"):
                 OPTIONS['nb_jobs'] = max(int(arg), 1)
 
+        return args
+
     def check_spksc_dir(self):
         check = os.path.exists(OPTIONS['root'])
         check = check & os.path.isdir(OPTIONS['root'])
@@ -111,13 +137,44 @@ Available options:
                           " doesn't exist or it is not a valid spksrc package")
                     sys.exit(2)
 
+    def _command_search(self):
+        self._spksrc_manager.check_update_packages()
+        pass
+
+    def _command_build(self):
+        pass
+
+    def _command_print_deps(self):
+        print('Package dependencies:')
+
+        if not OPTIONS['packages']:
+            self.help()
+            print("-p <package> is required for this command")
+            sys.exit(2)
+
+        for package in OPTIONS['packages']:
+            self._spksrc_manager.pprint_deps(package)
+
+    def _command_print_parent_deps(self):
+        print('Package parents dependencies:')
+
+        if not OPTIONS['packages']:
+            self.help()
+            print("-p <package> is required for this command")
+            sys.exit(2)
+
+        for package in OPTIONS['packages']:
+            self._spksrc_manager.pprint_parent_deps(package)
+
     def main(self):
         """
         main
         """
 
-        self.read_args()
-        pass
+        args = self.read_args()
+        command = 'search'
+        if args:
+            command = args[0]
 
         if not OPTIONS['root']:
             self.help()
@@ -128,17 +185,15 @@ Available options:
 
         self.check_packages_list()
 
-        spksrc_manager = SpksrcManager()
+        self._spksrc_manager = SpksrcManager()
 
-        print('Package dependencies:')
-        spksrc_manager.pprint_deps('spk/ffmpeg')
-
-        print('Package parents dependencies:')
-        spksrc_manager.pprint_parent_deps('cross/libogg')
-
-        # spksrc_manager.pprint_deps(OPTIONS['packages'][0])
-
-        spksrc_manager.check_update_packages()
+        try:
+            func = getattr(self, '_command_' + command)
+            self._versions = func()
+        except Exception as e:
+            print(e)
+            print('Command ' + command + ' has not found')
+            return None
 
 
 if __name__ == '__main__':

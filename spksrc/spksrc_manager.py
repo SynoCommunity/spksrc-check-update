@@ -7,6 +7,7 @@ from multiprocessing import Pool
 
 from bootstrap.options import DEFAULTS, OPTIONS
 from makefile_parser.makefile_parser import MakefileParser
+from spksrc.tools import Tools
 from spksrc.package.search_update import SearchUpdate
 from spksrc.package.package_builder import PackageBuilder
 
@@ -76,16 +77,20 @@ class SpksrcManager(object):
     def generate_packages_list(self):
         """ XXX
         """
-        packages = None
-        if OPTIONS['packages']:
-            packages = OPTIONS['packages']
-        else:
-            packages = self._find_packages(
-                OPTIONS['root'] + 'cross') + self._find_packages(OPTIONS['root'] + 'native') + self._find_packages(OPTIONS['root'] + 'spk')
+        packages_cache = os.path.join(
+            OPTIONS['work_dir'], OPTIONS['cache_dir'], 'packages.pkl')
+        self._packages = Tools.load_cache(
+            packages_cache, OPTIONS['cache_duration_spksrc_manager_packages'])
 
-        self._packages = {}
-        for package in packages:
-            self.generate_package_informations(package)
+        if not self._packages:
+            packages = self._find_packages(OPTIONS['root'] + 'cross') + self._find_packages(
+                OPTIONS['root'] + 'native') + self._find_packages(OPTIONS['root'] + 'spk')
+
+            self._packages = {}
+            for package in packages:
+                self.generate_package_informations(package)
+
+            Tools.save_cache(packages_cache, self._packages)
 
     def package_search_update(self, package):
 
@@ -102,19 +107,19 @@ class SpksrcManager(object):
 
         pool.map(self.package_search_update, self._packages)
 
-    def pprint_deps(self, package, indent=''):
+    def pprint_deps(self, package, depth=0):
         """ Print all dependencies
         """
-        print(indent + " - " + package)
+        print('  ' * depth + " - " + package)
         for deps in self._packages[package]['informations']['all_depends']:
-            self.pprint_deps(deps, indent + "\t")
+            self.pprint_deps(deps, depth + 1)
 
-    def pprint_parent_deps(self, package, indent=''):
+    def pprint_parent_deps(self, package, depth=0):
         """ Print all parent dependencies
         """
-        print(indent + " - " + package)
+        print('  ' * depth + " - " + package)
         for deps in self._packages[package]['parents']:
-            self.pprint_parent_deps(deps, indent + "\t")
+            self.pprint_parent_deps(deps, depth + 1)
 
         # packages = self.check_update_packages()
 
