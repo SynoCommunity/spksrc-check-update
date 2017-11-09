@@ -43,11 +43,11 @@ class SearchUpdate(object):
         self._path = path
         self._cache_dir = os.path.join(SearchUpdate.default_cache_dir, package)
         self._urls_downloaded = {}
+        self._parser = None
+        self._versions = None
         self._current_version = None
 
         _LOGGER.debug("__init__: path: %s" % (path,))
-        self._parser = MakefileParser()
-        self._parser.parse_file(path)
 
     def log(self, message):
         """ Print a message with a prefix
@@ -92,12 +92,28 @@ class SearchUpdate(object):
         """
         self._cache_dir = os.path.join(cache_dir, self._package)
 
+    def set_parser(self, parser):
+        """ Set parser instance
+        """
+        self._parser = parser
+
+    def get_parser(self):
+        """ Get parser instance
+        """
+        if not self._parser:
+            self._parser = MakefileParser()
+
+        if not self._parser.is_parsed():
+            self._parser.parse_file(self._path)
+
+        return self._parser
+
     def get_url(self):
         """ Return URL from Makefile package
         """
-        url = self._parser.get_var_values('PKG_DIST_SITE')
+        url = self.get_parser().get_var_values('PKG_DIST_SITE')
         if url is not None:
-            url_file = self._parser.get_var_values('PKG_DIST_NAME')
+            url_file = self.get_parser().get_var_values('PKG_DIST_NAME')
             if url_file is not None:
                 url[0] += '/' + url_file[0]
 
@@ -105,26 +121,62 @@ class SearchUpdate(object):
 
         return None
 
-    def get_version(self):
-        """Return version form Makefile package
+    def get_method(self):
+        """ Return the method used in Makefile
         """
-        version = self._parser.get_var_values('PKG_VERS')
-        if version:
-            return version[0]
+        return self.get_parser().get_var_values('PKG_DOWNLOAD_METHOD', ['common'])[0]
 
-        return version
+    def _get_version_git(self):
+        """ Return version for a package using git
+        """
+        return self.get_parser().get_var_values('PKG_GIT_HASH', ['master'])[0]
+
+    def _get_version_svn(self):
+        """ Return version for a package using svn
+        """
+        return self.get_parser().get_var_values('PKG_SVN_REV', ['HEAD'])[0]
+
+    def _get_version_wget(self):
+        """ Return version for a common package
+        """
+        return self._get_version_common()
+
+    def _get_version_common(self):
+        """ Return version for a common package
+        """
+        return self.get_parser().get_var_values('PKG_VERS', [''])[0]
+
+    def get_version(self):
+        """ Return version for the package
+        """
+
+        if self._current_version:
+            return self._current_version
+
+        method = self.get_method()
+        func_name = '_get_version_' + method
+
+        try:
+            func = getattr(self, func_name)
+            self._current_version = func()
+        except Exception as e:
+            print(e)
+            print('Method ' + func_name + ' has not found')
+            return None
+
+        return self._current_version
+
 
     def _search_updates_git(self):
-        """Search new tags or commits in git repository
+        """ Search new tags or commits in git repository
         """
         url = self.get_url()
 
         # Temp path to clone reository
         git_path = os.path.join(self._cache_dir, 'git')
         # Get current Hash of package
-        git_hash = self._parser.get_var_values('PKG_GIT_HASH', ['master'])[0]
+        git_hash = self.get_version()
 
-        self._current_version = git_hash
         _LOGGER.info("Current git hash: %s" % (git_hash,))
 
         # State file to determine when the repository is cloned
@@ -180,16 +232,12 @@ class SearchUpdate(object):
         # Temp path to checkout reository
         svn_path = os.path.join(self._cache_dir, 'svn')
         # Get current Revision of package
-        svn_rev = self._parser.get_var_values('PKG_SVN_REV')
+        svn_rev = self.get_version()
         # Get next revision
         svn_rev_next = 'HEAD'
-        if svn_rev is not None:
-            svn_rev = svn_rev[0]
+        if svn_rev != 'HEAD':
             svn_rev_next = int(svn_rev) + 1
-        else:
-            svn_rev = 'HEAD'
 
-        self._current_version = svn_rev
         self.log("Current svn revision: " + svn_rev)
 
         # State file to determine when the repository is checkout
@@ -545,7 +593,7 @@ class SearchUpdate(object):
     def _generate_regex_filename_path(self):
         """ Return a regex to find the filename with version, extension and path
         """
-        tmp_parser = copy.copy(self._parser)
+        tmp_parser = copy.copy(self.get_parser())
         tmp_parser.set_var_values('PKG_VERS', 'XXXVERXXX')
         tmp_parser.evaluate_var('PKG_DIST_NAME')
         filename = tmp_parser.get_var_values('PKG_DIST_NAME')
@@ -567,7 +615,7 @@ class SearchUpdate(object):
     def _generate_regex_filename(self):
         """ Return a regex to find the filename with version and extension
         """
-        tmp_parser = copy.copy(self._parser)
+        tmp_parser = copy.copy(self.get_parser())
         tmp_parser.set_var_values('PKG_VERS', 'XXXVERXXX')
         tmp_parser.evaluate_var('PKG_DIST_NAME')
         filename = tmp_parser.get_var_values('PKG_DIST_NAME')
@@ -582,7 +630,7 @@ class SearchUpdate(object):
     def _generate_regex_version(self):
         """ Return a regex to find the version based on the current version
         """
-        tmp_parser = copy.copy(self._parser)
+        tmp_parser = copy.copy(self.get_parser())
         regex_version = re.escape(self._version)
         regex_version = re.sub('\-[a-zA-Z0-9_]+', '\-[a-zA-Z0-9_]+', regex_version)
         regex_version = re.sub('[0-9]+', '[0-9]+', regex_version)
@@ -604,7 +652,6 @@ class SearchUpdate(object):
             self.log('Error: No version found in the package !')
             return None
 
-        self._current_version = self._version
         self.log("Current version: " + self._version)
 
         self._version_p = parse_version(self._version)
@@ -630,7 +677,7 @@ class SearchUpdate(object):
                 depth += 1
 
             # Check home page
-            home_page = self._parser.get_var_values('HOMEPAGE')
+            home_page = self.get_parser().get_var_values('HOMEPAGE')
             if home_page:
                 self.log("Search in home page")
                 depth = 0
@@ -641,7 +688,7 @@ class SearchUpdate(object):
                     depth += 1
 
             # Check download page
-            download_page = self._parser.get_var_values('DOWNLOAD_PAGE')
+            download_page = self.get_parser().get_var_values('DOWNLOAD_PAGE')
             if download_page:
                 self.log("Search in download page")
                 depth = 0
@@ -774,10 +821,11 @@ class SearchUpdate(object):
 
 
     def search_updates(self):
-
+        """ Search for all new versions
+        """
         if not os.path.exists(self._cache_dir):
             os.makedirs(self._cache_dir)
-        path_file_cached = os.path.join(self._cache_dir, 'result.pkl')
+        path_file_cached = os.path.join(self._cache_dir, 'versions.pkl')
 
         if self._use_cache == True and os.path.exists(path_file_cached):
             mtime = os.path.getmtime(path_file_cached)
@@ -785,21 +833,26 @@ class SearchUpdate(object):
                 self.log("Use cached file: " + path_file_cached)
                 return self.load_cache(path_file_cached)
 
-
-        method = self._parser.get_var_values('PKG_DOWNLOAD_METHOD', ['common'])[0]
+        method = self.get_method()
         func_name = '_search_updates_' + method
 
-        versions = None
+        self._versions = None
         try:
             func = getattr(self, func_name)
-            versions = func()
+            self._versions = func()
         except Exception as e:
             print(e)
             print('Method ' + func_name + ' has not found')
             return None
 
-        depends = self._parser.get_var_values('DEPENDS', [])
-        build_depends = self._parser.get_var_values('BUILD_DEPENDS', [])
+        self.save_cache(path_file_cached, self._versions)
+
+        return self._versions
+
+
+    def get_informations(self):
+        depends = self.get_parser().get_var_values('DEPENDS', [])
+        build_depends = self.get_parser().get_var_values('BUILD_DEPENDS', [])
 
         flatten = lambda l: [item for sublist in l for item in sublist]
 
@@ -809,15 +862,13 @@ class SearchUpdate(object):
         all_depends = depends.union(build_depends)
 
         result = {
-            "version": self._current_version,
-            "versions": versions,
-            "method": method,
+            "version": self.get_version(),
+            "versions": self._versions,
+            "method": self.get_method(),
             "depends": depends,
             "build_depends": build_depends,
             "all_depends": all_depends
         }
-
-        self.save_cache(path_file_cached, result)
 
         return result
 

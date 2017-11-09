@@ -8,24 +8,14 @@ from datetime import datetime
 
 import parsedatetime
 import multiprocessing
-from multiprocessing import Pool
-from spksrc.search_update import SearchUpdate
-from spksrc.package_builder import PackageBuilder
+from bootstrap.options import OPTIONS
+from spksrc.spksrc_manager import SpksrcManager
 
 
 class MainApp(object):
 
     def __init__(self):
-        self._root = None
-        self._packages = None
-        self._verbose = False
-        self._use_cache = True
-        self._update_deps = False
-        self._allow_major_release = False
-        self._allow_prerelease = False
-        self._cache_duration = 24 * 3600 * 7
-        self._work_dir = 'work'
-        self._nb_jobs = multiprocessing.cpu_count()
+        pass
 
     def help(self):
         print("""
@@ -34,7 +24,7 @@ Script to gather search update for spksrc package in cross/ and native/.
 Usage:
   main.py [options] -r <root>
 
-Options:
+Parameters:
   -h --help                        Show this screen.
   -r --root=<root>                 Root directory of spksrc
   -p --packages=<package,package>  Packages to check for update (Optional)
@@ -45,18 +35,21 @@ Options:
   -m --allow-major-release         Allow to update to next major version (Default: False)
   -a --allow-prerelease            Allow prerelease version (Default: False)
   -u --update-deps                 Update deps before build the current package (Default: False)
-  -j --jobs                        Number of jobs (Default: CPU core)
+  -j --jobs                        Number of jobs (Default: max CPU core)
+  -o --option "<key>=<value>"      Set an option
+
+Available options:
+  - packages
+  - verbose
+  - use_cache
+  - update_deps
+  - allow_major_release
+  - allow_prerelease
+  - cache_duration
+  - work_dir
+  - nb_jobs
+
 """)
-
-    def check_spksc_dir(self):
-        check = os.path.exists(self._root)
-        check = check & os.path.isdir(self._root)
-        check = check & os.path.isdir(self._root + 'cross')
-        check = check & os.path.isdir(self._root + 'native')
-        check = check & os.path.isdir(self._root + 'spk')
-        check = check & os.path.isdir(self._root + 'toolchains')
-
-        return check
 
     def read_args(self):
         try:
@@ -72,89 +65,51 @@ Options:
                 self.help()
                 sys.exit()
             elif opt in ("-v", "--verbose"):
-                self._verbose = True
+                OPTIONS['verbose'] = True
             elif opt in ("-c", "--disable-cache"):
-                self._use_cache = False
+                OPTIONS['use_cache'] = False
             elif opt in ("-r", "--root"):
-                self._root = arg.rstrip(os.path.sep) + os.path.sep
+                OPTIONS['root'] = arg.rstrip(os.path.sep) + os.path.sep
             elif opt in ("-p", "--packages"):
-                self._packages = arg.strip(os.path.sep)
+                OPTIONS['packages'] = arg.strip(os.path.sep).split(',')
             elif opt in ("-d", "--cache-duration"):
                 cal = parsedatetime.Calendar()
                 date_now = datetime.now().replace(microsecond=0)
                 date, _ = cal.parseDT(arg, sourceTime=date_now)
-                self._cache_duration = (date - date_now).total_seconds()
+                OPTIONS['cache_duration'] = (
+                    date - date_now).total_seconds()
             elif opt in ("-w", "--work-dir"):
-                self._work_dir = arg.rstrip(os.path.sep)
+                OPTIONS['work_dir'] = arg.rstrip(os.path.sep)
             elif opt in ("-m", "--allow-major-release"):
-                self._allow_major_release = True
+                OPTIONS['allow_major_release'] = True
             elif opt in ("-a", "--allow-prerelease"):
-                self._allow_prerelease = True
+                OPTIONS['allow_prerelease'] = True
             elif opt in ("-u", "--update-deps"):
-                self._update_deps = True
+                OPTIONS['update_deps'] = True
             elif opt in ("-j", "--jobs"):
-                self._nb_jobs = max(int(arg), 1)
+                OPTIONS['nb_jobs'] = max(int(arg), 1)
 
-    def find_makefile(self, path):
-        result = []
-        dirname = os.path.basename(path)
-        for filename in os.listdir(path):
-            makefile = os.path.join(path, filename, 'Makefile')
-            if os.path.exists(makefile):
-                result.append([dirname + os.path.sep + filename, makefile])
+    def check_spksc_dir(self):
+        check = os.path.exists(OPTIONS['root'])
+        check = check & os.path.isdir(OPTIONS['root'])
+        check = check & os.path.isdir(OPTIONS['root'] + 'cross')
+        check = check & os.path.isdir(OPTIONS['root'] + 'native')
+        check = check & os.path.isdir(OPTIONS['root'] + 'spk')
+        check = check & os.path.isdir(OPTIONS['root'] + 'toolchains')
 
-        result.sort()
+        if not check:
+            self.help()
+            print("<root> have to be a root directory of spksrc")
+            sys.exit(2)
 
-        return result
-
-    def check_update_makefile(self, makefile):
-        package, path = makefile
-        search_update = SearchUpdate(package, path)
-
-        if not self._use_cache:
-            search_update.disable_cache()
-
-        search_update.set_cache_dir(os.path.join(
-            self._work_dir, SearchUpdate.default_cache_dir))
-        search_update.set_cache_duration(self._cache_duration)
-
-        if self._verbose:
-            search_update.set_verbose(True)
-
-        return [package, search_update.search_updates()]
-
-    def get_list_packages(self):
-        makefiles = []
-        if self._packages is not None:
-            packages = self._packages.split(',')
-            for package in packages:
-                if not os.path.exists(self._root + package + os.path.sep + 'Makefile'):
+    def check_packages_list(self):
+        if OPTIONS['packages']:
+            for package in OPTIONS['packages']:
+                if not os.path.exists(OPTIONS['root'] + package + os.path.sep + 'Makefile'):
                     self.help()
                     print("<package> " + package +
                           " doesn't exist or it is not a valid spksrc package")
                     sys.exit(2)
-
-                makefiles += [[package, os.path.join(
-                    self._root, package, 'Makefile')]]
-        else:
-            makefiles = self.find_makefile(
-                self._root + 'cross') + self.find_makefile(self._root + 'native')
-
-        return makefiles
-
-    def check_update_packages(self):
-
-        makefiles = self.get_list_packages()
-
-        pool = Pool(processes=self._nb_jobs)
-
-        packages_list = pool.map(self.check_update_makefile, makefiles)
-
-        packages = {}
-        for package in packages_list:
-            packages[package[0]] = package[1]
-
-        return packages
 
     def main(self):
         """
@@ -162,28 +117,28 @@ Options:
         """
 
         self.read_args()
+        pass
 
-        if self._root is None or len(self._root) == 0:
+        if not OPTIONS['root']:
             self.help()
             print("<root> is required")
             sys.exit(2)
 
-        if not self.check_spksc_dir():
-            self.help()
-            print("<root> have to be a root directory of spksrc")
-            sys.exit(2)
+        self.check_spksc_dir()
 
-        packages = self.check_update_packages()
+        self.check_packages_list()
 
-        builder = PackageBuilder(packages, update_deps=self._update_deps,
-                                 allow_major_release=self._allow_major_release, allow_prerelease=self._allow_prerelease)
-        builder.set_spksrc_dir(os.path.join(
-            self._work_dir, PackageBuilder.default_spksrc_dir))
-        if self._verbose:
-            builder.set_verbose(True)
+        spksrc_manager = SpksrcManager()
 
-        builder.build()
-        # pprint.pprint(packages)
+        print('Package dependencies:')
+        spksrc_manager.pprint_deps('spk/ffmpeg')
+
+        print('Package parents dependencies:')
+        spksrc_manager.pprint_parent_deps('cross/libogg')
+
+        # spksrc_manager.pprint_deps(OPTIONS['packages'][0])
+
+        spksrc_manager.check_update_packages()
 
 
 if __name__ == '__main__':

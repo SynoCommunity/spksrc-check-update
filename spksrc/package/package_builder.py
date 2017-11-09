@@ -81,17 +81,6 @@ class PackageBuilder(object):
         self.log("Checkout master")
         repo.refs.master.checkout()
 
-    def create_deps_tree(self):
-        for package_name, package in self._packages.items():
-            for dep in package['all_depends']:
-                if dep not in self._packages:
-                    self.log("Package " + dep + " is not found")
-                    break
-
-                if 'parents' not in self._packages[dep]:
-                    self._packages[dep]['parents'] = []
-                self._packages[dep]['parents'].append(package_name)
-
     def _next_major_version(self, version):
         """
         Given a parsed version from pkg_resources.parse_version, returns a new
@@ -173,7 +162,7 @@ class PackageBuilder(object):
         self.prepare_spskrc_dir()
 
         # Loop on packages to the tree of dependances
-        self.create_deps_tree()
+        # self.create_deps_tree()
 
         #
 
@@ -191,5 +180,5 @@ class PackageBuilder(object):
                 self.log(package)
             pprint.pprint(self._packages[package])
             #version = self.get_new_version(package)
-            #if version:
+            # if version:
             #    pprint.pprint(version)

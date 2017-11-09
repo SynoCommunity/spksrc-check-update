@@ -25,6 +25,8 @@ HOMEPAGE = http://www.boost.org/
 COMMENT  = Boost provides free peer-reviewed portable C++ source libraries.
 LICENSE  = http://www.boost.org/LICENSE_1_0.txt
 
+VALUE_WITH_COMMENT=10 11 #not12 not13
+
 CONFIGURE_TARGET = myConfigure
 COMPILE_TARGET = myCompile
 INSTALL_TARGET = myInstall
