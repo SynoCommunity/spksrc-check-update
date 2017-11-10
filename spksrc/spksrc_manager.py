@@ -79,7 +79,7 @@ class SpksrcManager(object):
         """
         packages_cache = os.path.join(
             OPTIONS['work_dir'], OPTIONS['cache_dir'], 'packages.pkl')
-        self._packages = Tools.load_cache(
+        self._packages = Tools.cache_load(
             packages_cache, OPTIONS['cache_duration_spksrc_manager_packages'])
 
         if not self._packages:
@@ -90,7 +90,7 @@ class SpksrcManager(object):
             for package in packages:
                 self.generate_package_informations(package)
 
-            Tools.save_cache(packages_cache, self._packages)
+            Tools.cache_save(packages_cache, self._packages)
 
     def package_search_update(self, package):
 

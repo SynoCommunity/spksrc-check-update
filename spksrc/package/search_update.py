@@ -53,8 +53,8 @@ class SearchUpdate(object):
     def log(self, message):
         """ Print a message with a prefix
         """
-        if self._verbose:
-            print("[" + self._package + "] " + message)
+        #if self._verbose:
+        #    print("[" + self._package + "] " + message)
 
     def set_verbose(self, verbose):
         """ Define if versose mode
@@ -75,18 +75,6 @@ class SearchUpdate(object):
         """ Set cache duration
         """
         self._cache_duration = cache_duration
-
-    def save_cache(self, filename, data):
-        """ Save cache in a file
-        """
-        with open(filename, 'wb') as f:
-            pickle.dump(data, f, pickle.HIGHEST_PROTOCOL)
-
-    def load_cache(self, filename):
-        """ Load cache from a file
-        """
-        with open(filename, 'rb') as f:
-            return pickle.load(f)
 
     def set_cache_dir(self, cache_dir):
         """ Set cache directory
@@ -663,12 +651,7 @@ class SearchUpdate(object):
 
         path_file_cached = os.path.join(self._cache_dir, 'list.pkl')
 
-        download = True
-        if self._use_cache == True and os.path.exists(path_file_cached):
-            mtime = os.path.getmtime(path_file_cached)
-            if (mtime + self._cache_duration) > time.time():
-                download = False
-
+        download = not self._use_cache or not Tools.cache_check(path_file_cached, self._cache_duration)
         if download:
             depth = 0
             while True:
@@ -716,10 +699,10 @@ class SearchUpdate(object):
                 for url in version_urls:
                     self._get_url_data(url, 0, False)
 
-            self.save_cache(path_file_cached, self._urls_downloaded)
+            Tools.cache_save(path_file_cached, self._urls_downloaded)
         else:
             self.log("Use cached file: " + path_file_cached)
-            self._urls_downloaded = self.load_cache(path_file_cached)
+            self._urls_downloaded = Tools.cache_load(path_file_cached)
 
 
         self.log("Check for filename in pages")
@@ -828,11 +811,9 @@ class SearchUpdate(object):
             os.makedirs(self._cache_dir)
         path_file_cached = os.path.join(self._cache_dir, 'versions.pkl')
 
-        if self._use_cache == True and os.path.exists(path_file_cached):
-            mtime = os.path.getmtime(path_file_cached)
-            if (mtime + self._cache_duration) > time.time():
-                self.log("Use cached file: " + path_file_cached)
-                return self.load_cache(path_file_cached)
+        if self._use_cache == True and Tools.cache_check(path_file_cached, self._cache_duration):
+            self.log("Use cached file: " + path_file_cached)
+            return Tools.cache_load(path_file_cached)
 
         method = self.get_method()
         func_name = '_search_updates_' + method
@@ -846,7 +827,7 @@ class SearchUpdate(object):
             print('Method ' + func_name + ' has not found')
             return None
 
-        self.save_cache(path_file_cached, self._versions)
+        Tools.cache_save(path_file_cached, self._versions)
 
         return self._versions
 

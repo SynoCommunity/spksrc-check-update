@@ -4,6 +4,7 @@ import sys
 import os
 import getopt
 import pprint
+import logging
 from datetime import datetime
 
 import parsedatetime
@@ -197,5 +198,10 @@ Examples:
 
 
 if __name__ == '__main__':
+    logging.basicConfig(level=logging.DEBUG)
+    #logging.basicConfig(filename='myapp.log', level=logging.DEBUG)
+    logging.info('Started')
     app = MainApp()
-    sys.exit(app.main())
+    ret = app.main()
+    logging.info('Finished')
+    sys.exit(ret)

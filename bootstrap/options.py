@@ -10,6 +10,7 @@ DEFAULTS = {
 """ Store all options
 """
 OPTIONS = {
+    'root': None,
     'packages': None,
     'verbose': False,
     'use_cache': True,
