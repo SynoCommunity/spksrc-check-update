@@ -9,7 +9,7 @@ from datetime import datetime
 
 import parsedatetime
 import multiprocessing
-from .options import OPTIONS
+from .config import Config
 from .packages_manager import PackagesManager
 
 _LOGGER = logging.getLogger(__name__)
@@ -19,12 +19,17 @@ class Main(object):
     def __init__(self):
         pass
 
+    def version(self):
+        import imp
+        version = imp.load_source('version', 'lib/version.py')
+        print(version.SPKSRC_UPDATER_VERSION)
+
     def help(self):
         print("""
 Script to gather search update for spksrc package in cross/ and native/.
 
 Usage:
-  main.py [options] -r <root> [action]
+  main.py [options] [action]
 
 Action:
   - search: Search for new updates
@@ -34,9 +39,9 @@ Action:
 
 Parameters:
   -h --help                        Show this screen.
+  -v --version                     Print version
   -r --root=<root>                 Root directory of spksrc
   -p --packages=<package,package>  Packages to check for update (Optional)
-  -v --verbose                     Verbose mode
   -c --disable-cache               Disable cache
   -d --cache-duration=<duration>   Cache duration in seconds (Default: 3 days)
   -d --debug=<level>               Debug level: DEBUG, INFO, WARNING, ERROR, CRITICAL
@@ -50,7 +55,7 @@ Parameters:
 Available options:
   - packages
   - verbose
-  - use_cache
+  - cache_enabled
   - update_deps
   - allow_major_release
   - allow_prerelease
@@ -80,52 +85,62 @@ Examples:
     def read_args(self):
         try:
             opts, args = getopt.getopt(sys.argv[1:], "hcvmaur:p:d:w:j:", [
-                                       "root=", "packages=", "debug=", "work-dir=", "verbose", "disable-cache", "allow-prerelease", "update-deps", "jobs="])
+                "jobs="
+                "root=",
+                "packages=",
+                "debug=",
+                "work-dir=",
+                "version",
+                "disable-cache",
+                "allow-prerelease",
+                "update-deps",
+            ])
         except getopt.GetoptError as error:
             self.help()
-            print(error)
+            _LOGGER.error(error)
             sys.exit(2)
 
         for opt, arg in opts:
             if opt == '-h':
                 self.help()
                 sys.exit()
-            elif opt in ("-v", "--verbose"):
-                OPTIONS['verbose'] = True
+            elif opt in ("-v", "--version"):
+                self.version()
+                sys.exit()
             elif opt in ("-c", "--disable-cache"):
-                OPTIONS['use_cache'] = False
+                Config.set('cache_enabled', False)
             elif opt in ("-r", "--root"):
-                OPTIONS['root'] = arg.rstrip(os.path.sep) + os.path.sep
+                Config.set('root', arg.rstrip(os.path.sep) + os.path.sep)
             elif opt in ("-p", "--packages"):
-                OPTIONS['packages'] = arg.strip(os.path.sep).split(',')
+                Config.set('packages', arg.strip(os.path.sep).split(','))
             elif opt in ("-d", "--debug"):
-                OPTIONS['debug_level'] = arg
+                Config.set('debug_level', arg)
             elif opt in ("-e", "--cache-duration"):
                 cal = parsedatetime.Calendar()
                 date_now = datetime.now().replace(microsecond=0)
                 date, _ = cal.parseDT(arg, sourceTime=date_now)
-                OPTIONS['cache_duration'] = (
-                    date - date_now).total_seconds()
+                Config.set('cache_duration', (
+                    date - date_now).total_seconds())
             elif opt in ("-w", "--work-dir"):
-                OPTIONS['work_dir'] = arg.rstrip(os.path.sep)
+                Config.set('work_dir', arg.rstrip(os.path.sep))
             elif opt in ("-m", "--allow-major-release"):
-                OPTIONS['allow_major_release'] = True
+                Config.set('allow_major_release', True)
             elif opt in ("-a", "--allow-prerelease"):
-                OPTIONS['allow_prerelease'] = True
+                Config.set('allow_prerelease', True)
             elif opt in ("-u", "--update-deps"):
-                OPTIONS['update_deps'] = True
+                Config.set('update_deps', True)
             elif opt in ("-j", "--jobs"):
-                OPTIONS['nb_jobs'] = max(int(arg), 1)
+                Config.set('nb_jobs', max(int(arg), 1))
 
         return args
 
     def check_spksc_dir(self):
-        check = os.path.exists(OPTIONS['root'])
-        check = check & os.path.isdir(OPTIONS['root'])
-        check = check & os.path.isdir(OPTIONS['root'] + 'cross')
-        check = check & os.path.isdir(OPTIONS['root'] + 'native')
-        check = check & os.path.isdir(OPTIONS['root'] + 'spk')
-        check = check & os.path.isdir(OPTIONS['root'] + 'toolchains')
+        check = os.path.exists(Config.get('root'))
+        check = check & os.path.isdir(Config.get('root'))
+        check = check & os.path.isdir(Config.get('root') + 'cross')
+        check = check & os.path.isdir(Config.get('root') + 'native')
+        check = check & os.path.isdir(Config.get('root') + 'spk')
+        check = check & os.path.isdir(Config.get('root') + 'toolchains')
 
         if not check:
             self.help()
@@ -133,9 +148,9 @@ Examples:
             sys.exit(2)
 
     def check_packages_list(self):
-        if OPTIONS['packages']:
-            for package in OPTIONS['packages']:
-                if not os.path.exists(OPTIONS['root'] + package + os.path.sep + 'Makefile'):
+        if Config.get('packages'):
+            for package in Config.get('packages'):
+                if not os.path.exists(Config.get('root') + package + os.path.sep + 'Makefile'):
                     self.help()
                     print("<package> " + package +
                           " doesn't exist or it is not a valid spksrc package")
@@ -151,23 +166,23 @@ Examples:
     def _command_print_deps(self):
         print('Package dependencies:')
 
-        if not OPTIONS['packages']:
+        if not Config.get('packages'):
             self.help()
             print("-p <package> is required for this command")
             sys.exit(2)
 
-        for package in OPTIONS['packages']:
+        for package in Config.get('packages'):
             self._spksrc_manager.pprint_deps(package)
 
     def _command_print_parent_deps(self):
         print('Package parents dependencies:')
 
-        if not OPTIONS['packages']:
+        if not Config.get('packages'):
             self.help()
             print("-p <package> is required for this command")
             sys.exit(2)
 
-        for package in OPTIONS['packages']:
+        for package in Config.get('packages'):
             self._spksrc_manager.pprint_parent_deps(package)
 
     def main(self):
@@ -177,13 +192,13 @@ Examples:
 
         args = self.read_args()
 
-        logging.basicConfig(level=logging.getLevelName(OPTIONS['debug_level']))
+        logging.basicConfig(level=logging.getLevelName(Config.get('debug_level')))
 
         command = 'search'
         if args:
             command = args[0]
 
-        if not OPTIONS['root']:
+        if not Config.get('root'):
             self.help()
             print("<root> is required")
             sys.exit(2)

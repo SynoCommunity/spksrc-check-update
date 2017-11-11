@@ -7,7 +7,7 @@ import pprint
 
 from multiprocessing import Pool
 
-from .options import DEFAULTS, OPTIONS
+from .config import Config
 from .tools import Tools
 from .makefile_parser.makefile_parser import MakefileParser
 from .package_search_update import PackageSearchUpdate
@@ -39,7 +39,7 @@ class PackagesManager(object):
     def get_makefile_path(self, package):
         """ Return Makefile path of a package
         """
-        return os.path.join(OPTIONS['root'], package, 'Makefile')
+        return os.path.join(Config.get('root'), package, 'Makefile')
 
     def generate_package_informations(self, package):
         if not package in self._packages:
@@ -53,14 +53,14 @@ class PackagesManager(object):
             search_update = PackageSearchUpdate(package, makefile_path)
             search_update.set_parser(parser)
 
-            if not OPTIONS['use_cache']:
+            if not Config.get('cache_enabled'):
                 search_update.disable_cache()
 
             search_update.set_cache_dir(os.path.join(
-                OPTIONS['work_dir'], PackageSearchUpdate.default_cache_dir))
-            search_update.set_cache_duration(OPTIONS['cache_duration'])
+                Config.get('work_dir'), PackageSearchUpdate.default_cache_dir))
+            search_update.set_cache_duration(Config.get('cache_duration'))
 
-            if OPTIONS['verbose']:
+            if Config.get('verbose'):
                 search_update.set_verbose(True)
 
             informations = search_update.get_informations()
@@ -80,13 +80,13 @@ class PackagesManager(object):
         """ XXX
         """
         packages_cache = os.path.join(
-            OPTIONS['work_dir'], OPTIONS['cache_dir'], 'packages.pkl')
+            Config.get('work_dir'), Config.get('cache_dir'), 'packages.pkl')
         self._packages = Tools.cache_load(
-            packages_cache, OPTIONS['cache_duration_packages_manager'])
+            packages_cache, Config.get('cache_duration_packages_manager'))
 
         if not self._packages:
-            packages = self._find_packages(OPTIONS['root'] + 'cross') + self._find_packages(
-                OPTIONS['root'] + 'native') + self._find_packages(OPTIONS['root'] + 'spk')
+            packages = self._find_packages(Config.get('root') + 'cross') + self._find_packages(
+                Config.get('root') + 'native') + self._find_packages(Config.get('root') + 'spk')
 
             self._packages = {}
             for package in packages:
@@ -105,7 +105,7 @@ class PackagesManager(object):
     def check_update_packages(self):
         """ Print all dependencies
         """
-        pool = Pool(processes=OPTIONS['nb_jobs'])
+        pool = Pool(processes=Config.get('nb_jobs'))
 
         pool.map(self.package_search_update, self._packages)
 
@@ -125,11 +125,11 @@ class PackagesManager(object):
 
         # packages = self.check_update_packages()
 
-        # builder = PackageBuilder(packages, update_deps=OPTIONS['update_deps'],
-        #                          allow_major_release=OPTIONS['allow_major_release'], allow_prerelease=OPTIONS['allow_prerelease'])
+        # builder = PackageBuilder(packages, update_deps=Config.get('update_deps'),
+        #                          allow_major_release=Config.get('allow_major_release'), allow_prerelease=Config.get('allow_prerelease'))
         # builder.set_spksrc_dir(os.path.join(
-        #     OPTIONS['work_dir'], PackageBuilder.default_spksrc_dir))
-        # if OPTIONS['verbose']:
+        #     Config.get('work_dir'), PackageBuilder.default_spksrc_dir))
+        # if Config.get('verbose'):
         #     builder.set_verbose(True)
 
         # builder.build()

@@ -53,7 +53,7 @@ class PackageSearchUpdate(object):
 
     def __init__(self, package, path):
         self._verbose = False
-        self._use_cache = True
+        self._cache_enabled = True
         self._cache_duration = PackageSearchUpdate.default_cache_duration
         self._package = package
         self._path = path
@@ -68,8 +68,7 @@ class PackageSearchUpdate(object):
     def log(self, message):
         """ Print a message with a prefix
         """
-        #if self._verbose:
-        #    print("[" + self._package + "] " + message)
+        _LOGGER.info("[Package:%s]: %s" % (self._package,message,))
 
     def set_verbose(self, verbose):
         """ Define if versose mode
@@ -79,12 +78,12 @@ class PackageSearchUpdate(object):
     def enable_cache(self):
         """ Enable cache
         """
-        self._use_cache = True
+        self._cache_enabled = True
 
     def disable_cache(self):
         """ Disable cache
         """
-        self._use_cache = False
+        self._cache_enabled = False
 
     def set_cache_duration(self, cache_duration):
         """ Set cache duration
@@ -665,7 +664,7 @@ class PackageSearchUpdate(object):
 
         path_file_cached = os.path.join(self._cache_dir, 'list.pkl')
 
-        download = not self._use_cache or not Tools.cache_check(path_file_cached, self._cache_duration)
+        download = not self._cache_enabled or not Tools.cache_check(path_file_cached, self._cache_duration)
         if download:
             depth = 0
             while True:
@@ -825,7 +824,7 @@ class PackageSearchUpdate(object):
             os.makedirs(self._cache_dir)
         path_file_cached = os.path.join(self._cache_dir, 'versions.pkl')
 
-        if self._use_cache == True and Tools.cache_check(path_file_cached, self._cache_duration):
+        if self._cache_enabled == True and Tools.cache_check(path_file_cached, self._cache_duration):
             self.log("Use cached file: " + path_file_cached)
             return Tools.cache_load(path_file_cached)
 

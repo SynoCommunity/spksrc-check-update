@@ -37,8 +37,7 @@ class PackageBuilder(object):
     def log(self, message):
         """ Print a message with a prefix
         """
-        if self._verbose:
-            print("Builder: " + message)
+        _LOGGER.info("Builder: %s" % (message,))
 
     def set_verbose(self, verbose):
         """ Define if versose mode
