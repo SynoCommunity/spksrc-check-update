@@ -46,7 +46,7 @@ class PackagesManager(object):
             makefile_path = self.get_makefile_path(package)
 
             if not os.path.exists(makefile_path):
-                _LOGGER.warning("Package %s doesn't exist !", package)
+                _LOGGER.warning("Package %s doesn't exist !" % (package,))
                 return
 
             parser = MakefileParser()

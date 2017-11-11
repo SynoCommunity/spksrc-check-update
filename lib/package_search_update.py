@@ -30,6 +30,21 @@ class PackageSearchUpdate(object):
     # Regex pattern to match version
     regex_version = '(?P<version>[0-9]+([._-][0-9][0-9a-zA-Z]*|[._-][0-9a-zA-Z]*[0-9])*(-[a-zA-Z0-9_]+)*)'
 
+    # Extensions to match urls to download
+    extensions_to_download = [
+        'tar.lz',
+        'tar.bz2',
+        'tar.gz',
+        'tar.xz',
+        'zip',
+        'rar',
+        'tgz',
+        '7z'
+    ]
+    regex_extensions_replace_from = "|".join([re.escape(re.escape(e)) for e in extensions_to_download])
+    regex_extensions_replace_to= "|".join([re.escape(e) for e in extensions_to_download])
+
+
     # Default cache dir to save
     default_cache_dir = 'cache'
 
@@ -48,7 +63,7 @@ class PackageSearchUpdate(object):
         self._versions = None
         self._current_version = None
 
-        _LOGGER.debug("__init__: path: %s" % (path,))
+        _LOGGER.debug("path: %s" % (path,))
 
     def log(self, message):
         """ Print a message with a prefix
@@ -149,8 +164,7 @@ class PackageSearchUpdate(object):
             func = getattr(self, func_name)
             self._current_version = func()
         except Exception as e:
-            print(e)
-            print('Method ' + func_name + ' has not found')
+            _LOGGER.warning('Method "%s" was not found or during call: %s', method, e)
             return None
 
         return self._current_version
@@ -214,7 +228,7 @@ class PackageSearchUpdate(object):
         return new_versions
 
     def _search_updates_svn(self):
-        """# Search new tags or revision in subversion repository
+        """ Search new tags or revision in subversion repository
         """
         url = self.get_url()
 
@@ -392,7 +406,7 @@ class PackageSearchUpdate(object):
                     content = href['href'].path + ' ' + href['content']
                     match = re.search('download', content, re.IGNORECASE)
                     if match:
-                        _LOGGER.debug("_search_download_urls: regex-search: %s" % (content,))
+                        _LOGGER.debug("regex-search match: %s" % (content,))
 
                         # Create full link
                         url_found = ''
@@ -444,7 +458,7 @@ class PackageSearchUpdate(object):
                             if match_content:
                                 version = parse_version(match_content.group(1))
                 if version and version >= self._version_p:
-                    _LOGGER.debug("_search_version_urls: regex-search: %s, %s" % (href['href_p'].path, href['content'],))
+                    _LOGGER.debug("regex-search match: %s, %s" % (href['href_p'].path, href['content'],))
 
                     # Create full link
                     url_found = ''
@@ -595,8 +609,8 @@ class PackageSearchUpdate(object):
             regex_path =  re.escape(path).replace('XXXVERXXX', PackageSearchUpdate.regex_version)
 
         regex_filename_path = '(' + regex_path + '(?P<filename>' + re.escape(filename[0]).replace('XXXVERXXX', PackageSearchUpdate.regex_version) + '))'
-        regex_filename_path = re.sub('(\\\.tar\\\.lz|\\\.tar\\\.bz2|\\\.tar\\\.gz|\\\.tar\\\.xz|\\\.tar\\\.bz2|\\\.zip|\\\.rar|\\\.tgz|\\\.7z)', '\.(?P<extension>tar\.lz|tar\.bz2|tar\.gz|tar\.xz|tar\.bz2|zip|rar|tgz|7z)', regex_filename_path)
-        _LOGGER.debug("_generate_regex_filename_path: regex_filename_path: %s" % (regex_filename_path,))
+        regex_filename_path = re.sub('(' + PackageSearchUpdate.regex_extensions_replace_from + ')', '\.(?P<extension>' + PackageSearchUpdate.regex_extensions_replace_to + ')', regex_filename_path)
+        _LOGGER.debug("regex_filename_path: %s" % (regex_filename_path,))
 
         return re.compile(regex_filename_path)
 
@@ -611,7 +625,7 @@ class PackageSearchUpdate(object):
 
         regex_filename = '(?P<filename>' + re.escape(filename[0]).replace('XXXVERXXX', PackageSearchUpdate.regex_version) + ')($|/)'
         regex_filename = re.sub('(\\\.tar\\\.lz|\\\.tar\\\.bz2|\\\.tar\\\.gz|\\\.tar\\\.xz|\\\.tar\\\.bz2|\\\.zip|\\\.rar|\\\.tgz|\\\.7z)', '\.(?P<extension>tar\.lz|tar\.bz2|tar\.gz|tar\.xz|tar\.bz2|zip|rar|tgz|7z)', regex_filename)
-        _LOGGER.debug("_generate_regex_filename: regex_filename: %s" % (regex_filename,))
+        _LOGGER.debug("regex_filename: %s" % (regex_filename,))
 
         return re.compile(regex_filename)
 
@@ -624,7 +638,7 @@ class PackageSearchUpdate(object):
         regex_version = re.sub('\-[a-zA-Z0-9_]+', '\-[a-zA-Z0-9_]+', regex_version)
         regex_version = re.sub('[0-9]+', '[0-9]+', regex_version)
         regex_version = '(' + regex_version + ')'
-        _LOGGER.debug("_generate_regex_version: regex_version: %s" % (regex_version,))
+        _LOGGER.debug("regex_version: %s" % (regex_version,))
 
         return re.compile(regex_version)
 
@@ -823,8 +837,7 @@ class PackageSearchUpdate(object):
             func = getattr(self, func_name)
             self._versions = func()
         except Exception as e:
-            print(e)
-            print('Method ' + func_name + ' has not found')
+            _LOGGER.warning("Method '%s' was not found or during call: %s" % (method, e,))
             return None
 
         Tools.cache_save(path_file_cached, self._versions)

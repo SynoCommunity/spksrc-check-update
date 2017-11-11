@@ -12,6 +12,7 @@ DEFAULTS = {
 """ Store all options
 """
 OPTIONS = {
+    'debug_level': 20,
     'root': None,
     'packages': None,
     'verbose': False,

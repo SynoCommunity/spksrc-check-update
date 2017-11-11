@@ -12,6 +12,7 @@ import multiprocessing
 from .options import OPTIONS
 from .packages_manager import PackagesManager
 
+_LOGGER = logging.getLogger(__name__)
 
 class Main(object):
 
@@ -38,13 +39,13 @@ Parameters:
   -v --verbose                     Verbose mode
   -c --disable-cache               Disable cache
   -d --cache-duration=<duration>   Cache duration in seconds (Default: 3 days)
+  -d --debug=<level>               Debug level: DEBUG, INFO, WARNING, ERROR, CRITICAL
   -w --work-dir=<directory>        Work directory (Default: work)
   -m --allow-major-release         Allow to update to next major version (Default: False)
   -a --allow-prerelease            Allow prerelease version (Default: False)
   -u --update-deps                 Update deps before build the current package (Default: False)
   -j --jobs                        Number of jobs (Default: max CPU core)
   -o --option "<key>=<value>"      Set an option
-  -b --build                       Launch the build for packages updated
 
 Available options:
   - packages
@@ -79,7 +80,7 @@ Examples:
     def read_args(self):
         try:
             opts, args = getopt.getopt(sys.argv[1:], "hcvmaur:p:d:w:j:", [
-                                       "root=", "packages=", "cache-duration=", "work-dir=", "verbose", "disable-cache", "allow-prerelease", "update-deps", "jobs="])
+                                       "root=", "packages=", "debug=", "work-dir=", "verbose", "disable-cache", "allow-prerelease", "update-deps", "jobs="])
         except getopt.GetoptError as error:
             self.help()
             print(error)
@@ -97,7 +98,9 @@ Examples:
                 OPTIONS['root'] = arg.rstrip(os.path.sep) + os.path.sep
             elif opt in ("-p", "--packages"):
                 OPTIONS['packages'] = arg.strip(os.path.sep).split(',')
-            elif opt in ("-d", "--cache-duration"):
+            elif opt in ("-d", "--debug"):
+                OPTIONS['debug_level'] = arg
+            elif opt in ("-e", "--cache-duration"):
                 cal = parsedatetime.Calendar()
                 date_now = datetime.now().replace(microsecond=0)
                 date, _ = cal.parseDT(arg, sourceTime=date_now)
@@ -173,6 +176,9 @@ Examples:
         """
 
         args = self.read_args()
+
+        logging.basicConfig(level=logging.getLevelName(OPTIONS['debug_level']))
+
         command = 'search'
         if args:
             command = args[0]
@@ -192,16 +198,13 @@ Examples:
             func = getattr(self, '_command_' + command)
             self._versions = func()
         except Exception as e:
-            print(e)
-            print('Command ' + command + ' has not found')
+            _LOGGER.warning('Command "%s" was not found or during call: %s' % (command, e,))
             return None
 
 
 def main():
-    logging.basicConfig(level=logging.DEBUG)
-    #logging.basicConfig(filename='myapp.log', level=logging.DEBUG)
-    logging.info('Started')
+    logging_format = "[%(levelname)s][%(filename)s:%(lineno)s:%(funcName)s()] %(message)s"
+    logging.basicConfig(format=logging_format)
     app = Main()
     ret = app.main()
-    logging.info('Finished')
     sys.exit(ret)
