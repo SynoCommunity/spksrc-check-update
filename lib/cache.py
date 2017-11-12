@@ -31,6 +31,9 @@ class Cache:
     def check(self, filename, duration=None):
         """ Check cache from a file
         """
+        if not Config.get('cache_enabled'):
+            return False
+
         c_duration = duration or self._duration
         path = os.path.join(self._dir, filename)
         if os.path.exists(path):

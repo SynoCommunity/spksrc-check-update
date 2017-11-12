@@ -8,7 +8,7 @@ import pprint
 from multiprocessing import Pool
 
 from .config import Config
-from .tools import Tools
+from .cache import Cache
 from .makefile_parser.makefile_parser import MakefileParser
 from .package_search_update import PackageSearchUpdate
 from .package_builder import PackageBuilder
@@ -21,7 +21,8 @@ class PackagesManager(object):
     def __init__(self):
         self._packages = {}
         self._packages_build = []
-
+        self._cache = Cache(duration=Config.get(
+            "cache_duration_packages_manager"))
         self.generate_packages_list()
 
     def _find_packages(self, path):
@@ -53,16 +54,6 @@ class PackagesManager(object):
             search_update = PackageSearchUpdate(package, makefile_path)
             search_update.set_parser(parser)
 
-            if not Config.get('cache_enabled'):
-                search_update.disable_cache()
-
-            search_update.set_cache_dir(os.path.join(
-                Config.get('work_dir'), PackageSearchUpdate.default_cache_dir))
-            search_update.set_cache_duration(Config.get('cache_duration'))
-
-            if Config.get('verbose'):
-                search_update.set_verbose(True)
-
             informations = search_update.get_informations()
             self._packages[package] = {
                 'makefile_path': makefile_path,
@@ -79,10 +70,8 @@ class PackagesManager(object):
     def generate_packages_list(self):
         """ XXX
         """
-        packages_cache = os.path.join(
-            Config.get('work_dir'), Config.get('cache_dir'), 'packages.pkl')
-        self._packages = Tools.cache_load(
-            packages_cache, Config.get('cache_duration_packages_manager'))
+        cache_filename = 'packages.pkl'
+        self._packages = self._cache.load(cache_filename)
 
         if not self._packages:
             packages = self._find_packages(Config.get('spksrc_git_dir') + 'cross') + self._find_packages(
@@ -92,7 +81,7 @@ class PackagesManager(object):
             for package in packages:
                 self.generate_package_informations(package)
 
-            Tools.cache_save(packages_cache, self._packages)
+            self._cache.save(cache_filename, self._packages)
 
     def package_search_update(self, package):
 

@@ -20,7 +20,9 @@ from urllib.parse import urlparse, ParseResult, unquote
 from pkg_resources import parse_version
 from bs4 import BeautifulSoup
 
-from .tools import Tools
+from .config import Config
+from .cache import Cache
+# from .tools import Tools
 from .makefile_parser.makefile_parser import MakefileParser
 
 _LOGGER = logging.getLogger(__name__)
@@ -47,20 +49,14 @@ class PackageSearchUpdate(object):
     regex_extensions_replace_to = "|".join(
         [re.escape(e) for e in extensions_to_download])
 
-    # Default cache dir to save
-    default_cache_dir = 'cache'
-
-    # Delay to save cache
-    default_cache_duration = 24 * 3600 * 3
-
     def __init__(self, package, path):
         self._verbose = False
-        self._cache_enabled = True
-        self._cache_duration = PackageSearchUpdate.default_cache_duration
+        package_cache_dir = os.path.join(
+            Config.get('cache_dir'), self._package)
+        self._cache = Cache(dir=package_cache_dir, duration=Config.get(
+            "cache_duration_search_update_download"))
         self._package = package
         self._path = path
-        self._cache_dir = os.path.join(
-            PackageSearchUpdate.default_cache_dir, package)
         self._urls_downloaded = {}
         self._parser = None
         self._versions = None
@@ -72,31 +68,6 @@ class PackageSearchUpdate(object):
         """ Print a message with a prefix
         """
         _LOGGER.info("[Package:%s]: %s", self._package, message)
-
-    def set_verbose(self, verbose):
-        """ Define if versose mode
-        """
-        self._verbose = verbose
-
-    def enable_cache(self):
-        """ Enable cache
-        """
-        self._cache_enabled = True
-
-    def disable_cache(self):
-        """ Disable cache
-        """
-        self._cache_enabled = False
-
-    def set_cache_duration(self, cache_duration):
-        """ Set cache duration
-        """
-        self._cache_duration = cache_duration
-
-    def set_cache_dir(self, cache_dir):
-        """ Set cache directory
-        """
-        self._cache_dir = os.path.join(cache_dir, self._package)
 
     def set_parser(self, parser):
         """ Set parser instance
@@ -679,13 +650,11 @@ class PackageSearchUpdate(object):
         self._version_p = parse_version(self._version)
 
         url_splitted = url.split('/')
-        filename = url_splitted[-1]
+        # filename = url_splitted[-1]
         url = '/'.join(url_splitted[0:-1])
 
-        path_file_cached = os.path.join(self._cache_dir, 'list.pkl')
-
-        download = not self._cache_enabled or not Tools.cache_check(
-            path_file_cached, self._cache_duration)
+        cache_filename = 'list.pkl'
+        download = not self._cache.check(cache_filename)
         if download:
             depth = 0
             while True:
@@ -732,10 +701,9 @@ class PackageSearchUpdate(object):
                 for url in version_urls:
                     self._get_url_data(url, 0, False)
 
-            Tools.cache_save(path_file_cached, self._urls_downloaded)
+            self._cache.save(cache_filename, self._urls_downloaded)
         else:
-            self.log("Use cached file: " + path_file_cached)
-            self._urls_downloaded = Tools.cache_load(path_file_cached)
+            self._urls_downloaded = self._cache.load(cache_filename)
 
         self.log("Check for filename in pages")
 
@@ -849,13 +817,9 @@ class PackageSearchUpdate(object):
     def search_updates(self):
         """ Search for all new versions
         """
-        if not os.path.exists(self._cache_dir):
-            os.makedirs(self._cache_dir)
-        path_file_cached = os.path.join(self._cache_dir, 'versions.pkl')
-
-        if self._cache_enabled == True and Tools.cache_check(path_file_cached, self._cache_duration):
-            self.log("Use cached file: " + path_file_cached)
-            return Tools.cache_load(path_file_cached)
+        cache_filename = 'versions.pkl'
+        if self._cache.check(cache_filename):
+            return self._cache.load(cache_filename)
 
         method = self.get_method()
         func_name = '_search_updates_' + method
@@ -869,7 +833,7 @@ class PackageSearchUpdate(object):
                 "Method '%s' was not found or during call: %s", method, e)
             return None
 
-        Tools.cache_save(path_file_cached, self._versions)
+        self._cache.save(cache_filename, self._versions)
 
         return self._versions
 
