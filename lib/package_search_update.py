@@ -44,8 +44,8 @@ class PackageSearchUpdate(object):
         'tgz',
         '7z'
     ]
-    regex_extensions_replace_from = "|".join([re.escape(re.escape(e)) for e in extensions_to_download])
-    regex_extensions_replace_to = "|".join([re.escape(e) for e in extensions_to_download])
+    regex_extensions_replace_from = "|".join([re.escape(re.escape("." + e)) for e in extensions_to_download])
+    regex_extensions_replace_to = "|".join([re.escape("." + e) for e in extensions_to_download])
 
     def __init__(self, package, path):
         self._package = package
@@ -588,8 +588,8 @@ class PackageSearchUpdate(object):
             regex_path = re.escape(path).replace(
                 'XXXVERXXX', PackageSearchUpdate.regex_version)
 
-        regex_filename_path = '(' + regex_path + '(?P<filename>' + re.escape(
-            filename[0]).replace('XXXVERXXX', PackageSearchUpdate.regex_version) + '))'
+        regex_filename_path = '(' + regex_path + '(?P<filename>' + re.escape(filename[0]).replace('XXXVERXXX', PackageSearchUpdate.regex_version) + '))'
+        _LOGGER.debug("regex_filename_path_before: %s", regex_filename_path)
         regex_filename_path = re.sub('(' + PackageSearchUpdate.regex_extensions_replace_from + ')',
                                      '\.(?P<extension>' + PackageSearchUpdate.regex_extensions_replace_to + ')', regex_filename_path)
         _LOGGER.debug("regex_filename_path: %s", regex_filename_path)
@@ -606,8 +606,8 @@ class PackageSearchUpdate(object):
 
         regex_filename = '(?P<filename>' + re.escape(filename[0]).replace(
             'XXXVERXXX', PackageSearchUpdate.regex_version) + ')($|/)'
-        regex_filename = re.sub('(\\\.tar\\\.lz|\\\.tar\\\.bz2|\\\.tar\\\.gz|\\\.tar\\\.xz|\\\.tar\\\.bz2|\\\.zip|\\\.rar|\\\.tgz|\\\.7z)',
-                                '\.(?P<extension>tar\.lz|tar\.bz2|tar\.gz|tar\.xz|tar\.bz2|zip|rar|tgz|7z)', regex_filename)
+        regex_filename = re.sub('(' + PackageSearchUpdate.regex_extensions_replace_from + ')',
+                                     '\.(?P<extension>' + PackageSearchUpdate.regex_extensions_replace_to + ')', regex_filename)
         _LOGGER.debug("regex_filename: %s", regex_filename)
 
         return re.compile(regex_filename)

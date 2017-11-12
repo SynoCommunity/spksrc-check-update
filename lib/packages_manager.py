@@ -25,7 +25,7 @@ class PackagesManager(object):
 
         self.generate_packages_list()
         if not self._packages_requested:
-            self._packages_requested = self._packages.keys()
+            self._packages_requested = list(self._packages.keys())
 
     def _find_packages(self, path):
         """ Find all packages in a directory and return package name
@@ -105,11 +105,20 @@ class PackagesManager(object):
         cache_filename = 'packages.pkl'
         self._cache.save(cache_filename, self._packages)
 
+    def get_package(self, package):
+        """ Return package informations
+        """
+        return self._packages[package]
+
     def pprint_informations(self):
         """ Print informations on packages
         """
         for package in self._packages_requested:
-            pprint.pprint(self._packages[package]['informations'])
+            print("{} ({}):".format(package, self._packages[package]['informations']['version']))
+            for (version, _) in self._packages[package]['informations']['versions'].items():
+                print(" - {}".format(version))
+
+            # pprint.pprint(self._packages[package]['informations'])
 
     def pprint_deps(self, package, depth=0):
         """ Print all dependencies

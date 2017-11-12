@@ -233,7 +233,7 @@ Examples:
 
 def main():
     logging_format = "[%(levelname)s][%(filename)s:%(lineno)s:%(funcName)s()] %(message)s"
-    logging.basicConfig(format=logging_format)
+    logging.basicConfig(format=logging_format,level=logging.DEBUG)
     app = Main()
     ret = app.main()
     sys.exit(ret)
