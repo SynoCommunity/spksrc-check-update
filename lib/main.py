@@ -87,12 +87,13 @@ Examples:
 
     def read_args(self):
         try:
-            opts, args = getopt.getopt(sys.argv[1:], "hcvmaur:p:d:w:j:o:", [
+            opts, args = getopt.getopt(sys.argv[1:], "hcvmaur:p:d:w:j:o:e:", [
                 "jobs="
                 "debug=",
                 "work-dir=",
                 "root=",
                 "packages=",
+                "cache-duration=",
                 "otpion=",
                 "version",
                 "disable-cache",
@@ -123,11 +124,7 @@ Examples:
             elif opt in ("-d", "--debug"):
                 Config.set('debug_level', arg)
             elif opt in ("-e", "--cache-duration"):
-                cal = parsedatetime.Calendar()
-                date_now = datetime.now().replace(microsecond=0)
-                date, _ = cal.parseDT(arg, sourceTime=date_now)
-                Config.set('cache_duration', (
-                    date - date_now).total_seconds())
+                Config.set('cache_duration', arg)
             elif opt in ("-w", "--work-dir"):
                 Config.set('work_dir', arg.rstrip(os.path.sep))
             elif opt in ("-m", "--allow-major-release"):
@@ -227,7 +224,7 @@ Examples:
 
         self.check_packages_list()
 
-        self._spksrc_manager = PackagesManager()
+        self._spksrc_manager = PackagesManager(self._packages)
 
         try:
             func = getattr(self, '_command_' + command)
