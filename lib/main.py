@@ -16,6 +16,7 @@ _LOGGER = logging.getLogger(__name__)
 class Main(object):
 
     def __init__(self):
+        self._packages = []
         pass
 
     def version(self):
@@ -117,7 +118,8 @@ Examples:
                 Config.set('spksrc_git_dir', arg.rstrip(
                     os.path.sep) + os.path.sep)
             elif opt in ("-p", "--packages"):
-                Config.set('packages', arg.strip(os.path.sep).split(','))
+                # Config.set('packages', arg.strip(os.path.sep).split(','))
+                self._packages = arg.strip(os.path.sep).split(',')
             elif opt in ("-d", "--debug"):
                 Config.set('debug_level', arg)
             elif opt in ("-e", "--cache-duration"):
@@ -165,8 +167,8 @@ Examples:
             sys.exit(2)
 
     def check_packages_list(self):
-        if Config.get('packages'):
-            for package in Config.get('packages'):
+        if self._packages:
+            for package in self._packages:
                 if not os.path.exists(Config.get('spksrc_git_dir') + package + os.path.sep + 'Makefile'):
                     self.help()
                     print("<package> " + package +
@@ -183,23 +185,23 @@ Examples:
     def _command_print_deps(self):
         print('Package dependencies:')
 
-        if not Config.get('packages'):
+        if not self._packages:
             self.help()
             print("-p <package> is required for this command")
             sys.exit(2)
 
-        for package in Config.get('packages'):
+        for package in self._packages:
             self._spksrc_manager.pprint_deps(package)
 
     def _command_print_parent_deps(self):
         print('Package parents dependencies:')
 
-        if not Config.get('packages'):
+        if not self._packages:
             self.help()
             print("-p <package> is required for this command")
             sys.exit(2)
 
-        for package in Config.get('packages'):
+        for package in self._packages:
             self._spksrc_manager.pprint_parent_deps(package)
 
     def main(self):

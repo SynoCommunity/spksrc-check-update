@@ -100,11 +100,11 @@ configs = {
         'type': bool
     },
 
-    'packages': {
-        'description': 'List of packages in input',
-        'default': [],
-        'type': list
-    }
+    # 'packages': {
+    #     'description': 'List of packages in input',
+    #     'default': [],
+    #     'type': list
+    # }
 }
 
 

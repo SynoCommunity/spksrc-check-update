@@ -18,7 +18,8 @@ _LOGGER = logging.getLogger(__name__)
 
 class PackagesManager(object):
 
-    def __init__(self):
+    def __init__(self, packages_requested):
+        self._packages_requested = packages_requested
         self._packages = {}
         self._packages_build = []
         self._cache = Cache(duration=Config.get(
