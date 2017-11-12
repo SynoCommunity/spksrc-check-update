@@ -7,7 +7,8 @@ from makefile_parser.makefile_parser import MakefileParser
 class TestMakefileParser(unittest.TestCase):
     def setUp(self):
         self.parser = MakefileParser()
-        self.parser.parse_file('./test/test_makefile_parser_testfile')
+        self.parser.parse_file(
+            './lib/makefile_parser/tests/test_makefile_parser_testfile')
 
     def test_parse_text(self):
         text = """TEST=10

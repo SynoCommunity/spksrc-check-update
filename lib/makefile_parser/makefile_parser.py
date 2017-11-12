@@ -1,8 +1,5 @@
 # -*- coding: utf-8 -*-
 
-
-import sys
-import json
 import copy
 import logging
 import pyparsing as pp
@@ -27,9 +24,9 @@ class MakefileParser(object):
         var_name = pp.Word(pp.alphas + '_', pp.alphanums + '_')('var')
 
         enclosed = pp.Forward()
-        nestedParents = pp.nestedExpr('$(', ')', content=enclosed)
-        nestedBrackets = pp.nestedExpr('${', '}', content=enclosed)
-        enclosed <<= (nestedParents | nestedBrackets |
+        nested_parents = pp.nestedExpr('$(', ')', content=enclosed)
+        nested_brackets = pp.nestedExpr('${', '}', content=enclosed)
+        enclosed <<= (nested_parents | nested_brackets |
                       pp.CharsNotIn('$(){}#\n')).leaveWhitespace()
 
         return pp.lineStart + var_name + assign + pp.ZeroOrMore(pp.White()) + pp.ZeroOrMore(enclosed)('value') + pp.Optional(pp.pythonStyleComment)('comment')
@@ -68,12 +65,12 @@ class MakefileParser(object):
         arguments = arguments.strip()
 
         args = arguments.split(' ')
-        if len(args) == 0:
+        if not args:
             return ['']
 
         first_arg = args.pop(0)
 
-        if len(args) > 0:
+        if args:
             func_name = '_call_' + first_arg
             func_args = ' '.join(args)
             _LOGGER.debug("parse_call: '%s' with args: %s",
@@ -101,7 +98,7 @@ class MakefileParser(object):
         str_ret = []
         for res in parse_result:
 
-            if type(res) is pp.ParseResults:
+            if isinstance(res, pp.ParseResults):
                 str_to_add = self.evaluate_result(
                     res, re_evaluate_values, True)
                 str_ret.append(str_to_add)
@@ -125,7 +122,7 @@ class MakefileParser(object):
         """
         result = self._parser.searchString(line)
 
-        if len(result) > 0:
+        if result:
             if result[0]['var'] not in self._vars:
                 self._vars_not_evaluate[result[0]['var']] = []
                 self._vars_not_evaluate[result[0]['var']].append('')
@@ -133,7 +130,7 @@ class MakefileParser(object):
                 self._vars[result[0]['var']].append('')
 
             if 'value' in result[0]:
-                if len(self._vars[result[0]['var']]) > 0 and self._vars[result[0]['var']][0] == '':
+                if self._vars[result[0]['var']] and self._vars[result[0]['var']][0] == '':
                     self._vars_not_evaluate[result[0]['var']].pop(0)
                     self._vars[result[0]['var']].pop(0)
 
@@ -194,10 +191,10 @@ class MakefileParser(object):
         if not value_not_evaluate:
             value_not_evaluate = value
 
-        if type(value) is not list:
+        if not isinstance(value, list):
             value = [value]
 
-        if type(value_not_evaluate) is not list:
+        if not isinstance(value_not_evaluate, list):
             value_not_evaluate = [value_not_evaluate]
 
         self._vars_not_evaluate[var] = value_not_evaluate

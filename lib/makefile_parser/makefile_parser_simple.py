@@ -19,9 +19,9 @@ class MakefileParserSimple(object):
         var_name = pp.Word(pp.alphas + '_', pp.alphanums + '_')('var')
 
         enclosed = pp.Forward()
-        nestedParens = pp.nestedExpr('$(', ')', content=enclosed)
-        nestedBrackets = pp.nestedExpr('${', '}', content=enclosed)
-        enclosed <<= (nestedParens | nestedBrackets |
+        nested_parents = pp.nestedExpr('$(', ')', content=enclosed)
+        nested_brackets = pp.nestedExpr('${', '}', content=enclosed)
+        enclosed <<= (nested_parents | nested_brackets |
                       pp.CharsNotIn('$(){}\n')).leaveWhitespace()
 
         return pp.lineStart + var_name + assign + pp.ZeroOrMore(pp.White()) + pp.ZeroOrMore(enclosed)('value')
@@ -35,12 +35,12 @@ class MakefileParserSimple(object):
         arguments = arguments.strip()
 
         args = arguments.split(' ')
-        if len(args) == 0:
+        if not args:
             return ''
 
         first_arg = args.pop(0)
 
-        if len(args) > 0:
+        if args:
             func_name = '_call_' + first_arg
             try:
                 func = getattr(self, func_name)
@@ -70,7 +70,7 @@ class MakefileParserSimple(object):
     def _parse_line(self, line):
         result = self._parser.searchString(line)
 
-        if len(result) > 0:
+        if result:
             self._vars[result[0]['var']] = ''
             if 'value' in result[0]:
                 self._vars[result[0]['var']] = self._evaluate_result(

@@ -758,7 +758,7 @@ class PackageSearchUpdate(object):
                                     url_filename)]['schemes'].append(scheme)
 
         # If no result found : Try to find directly in content page (maybe javascript is used to display)
-        if len(new_versions) == 0:
+        if not new_versions:
             # Get regex for filename and path
             regex_filename_path = self._generate_regex_filename_path()
             for url, data in self._urls_downloaded.items():
