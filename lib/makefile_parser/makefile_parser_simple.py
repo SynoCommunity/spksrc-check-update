@@ -44,9 +44,10 @@ class MakefileParserSimple(object):
             func_name = '_call_' + first_arg
             try:
                 func = getattr(self, func_name)
-                return func(' '.join(args))
-            except:
+            except AttributeError as e:
                 return ''
+
+            return func(' '.join(args))
         else:
             if first_arg in self._vars:
                 return self._vars[first_arg]

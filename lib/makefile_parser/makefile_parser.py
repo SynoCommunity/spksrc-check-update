@@ -75,14 +75,15 @@ class MakefileParser(object):
             _LOGGER.debug("parse_call: '%s' with args: %s", first_arg, func_args)
             try:
                 func = getattr(self, func_name)
-                value = func(func_args, re_evaluate_values)
-                _LOGGER.debug("parse_call: return %s", value)
-                if type(value) is list:
-                    return value
-
-                return [value]
-            except:
+            except AttributeError as e:
                 return ['']
+
+            value = func(func_args, re_evaluate_values)
+            _LOGGER.debug("parse_call: return %s", value)
+            if type(value) is list:
+                return value
+
+            return [value]
         else:
             if first_arg in self._vars:
                 if re_evaluate_values:

@@ -47,7 +47,7 @@ class Cache:
         """ Load cache from a file
         """
         path = os.path.join(self._dir, filename)
-        if not duration and os.path.exists(filename) or duration and self.check(filename, duration):
+        if not duration and os.path.exists(path) or duration and self.check(filename, duration):
             with open(path, 'rb') as f:
                 return pickle.load(f)
 

@@ -44,19 +44,14 @@ class PackageSearchUpdate(object):
         'tgz',
         '7z'
     ]
-    regex_extensions_replace_from = "|".join(
-        [re.escape(re.escape(e)) for e in extensions_to_download])
-    regex_extensions_replace_to = "|".join(
-        [re.escape(e) for e in extensions_to_download])
+    regex_extensions_replace_from = "|".join([re.escape(re.escape(e)) for e in extensions_to_download])
+    regex_extensions_replace_to = "|".join([re.escape(e) for e in extensions_to_download])
 
     def __init__(self, package, path):
-        self._verbose = False
-        package_cache_dir = os.path.join(
-            Config.get('cache_dir'), self._package)
-        self._cache = Cache(dir=package_cache_dir, duration=Config.get(
-            "cache_duration_search_update_download"))
         self._package = package
         self._path = path
+        self._cache_dir = os.path.join(Config.get('cache_dir'), self._package)
+        self._cache = Cache(dir=self._cache_dir, duration=Config.get("cache_duration_search_update_download"))
         self._urls_downloaded = {}
         self._parser = None
         self._versions = None
@@ -135,11 +130,11 @@ class PackageSearchUpdate(object):
 
         try:
             func = getattr(self, func_name)
-            self._current_version = func()
-        except Exception as e:
-            _LOGGER.warning(
-                'Method "%s" was not found or during call: %s', method, e)
+        except AttributeError as e:
+            _LOGGER.warning('Method "%s" was not found or during call: %s', method, e)
             return None
+
+        self._current_version = func()
 
         return self._current_version
 
@@ -279,8 +274,7 @@ class PackageSearchUpdate(object):
                     file = infos[-1]
                     if infos[0][0] == 'd':
                         file += '/'
-                    hrefs.append(
-                        {'href': file, 'href_p': urlparse(file), 'content': ''})
+                    hrefs.append({'href': file, 'href_p': urlparse(file), 'content': ''})
             except:
                 self.log('Error to connect on FTP')
                 return None
@@ -346,15 +340,13 @@ class PackageSearchUpdate(object):
                         base_url = 'http://' + project + '.googlecode.com/files/'
                         for info in j['downloads']:
                             href = base_url + info['filename']
-                            hrefs.append(
-                                {'href': href, 'href_p': urlparse(href), 'content': ''})
+                            hrefs.append({'href': href, 'href_p': urlparse(href), 'content': ''})
                 else:
                     soup = BeautifulSoup(content, "html5lib")
                     for item in soup.find_all("a"):
                         href = item.get('href')
                         if href:
-                            hrefs.append({'href': href, 'href_p': urlparse(
-                                href), 'content': str(item.next).strip()})
+                            hrefs.append({'href': href, 'href_p': urlparse(href), 'content': str(item.next).strip()})
             else:
                 # In case of code different to 200
                 self.log('Error to download page: ' + url)
@@ -742,8 +734,7 @@ class PackageSearchUpdate(object):
                         if scheme == '':
                             scheme = 'https'
 
-                        url_info = {'filename': unquote(match.group('filename')), 'extensions': match.group(
-                            'extension'), 'full': unquote(url_filename), 'schemes': [scheme]}
+                        url_info = {'filename': unquote(match.group('filename')), 'extensions': match.group('extension'), 'full': unquote(url_filename), 'schemes': [scheme]}
                         if version_curr not in new_versions:
                             new_versions[version_curr] = {
                                 'version': version_curr, 'is_prerelease': version_curr_p.is_prerelease, 'urls': [url_info]}
@@ -751,11 +742,9 @@ class PackageSearchUpdate(object):
                             urls = list(
                                 map(lambda x: x['full'], new_versions[version_curr]['urls']))
                             if url_filename not in urls:
-                                new_versions[version_curr]['urls'].append(
-                                    url_info)
+                                new_versions[version_curr]['urls'].append(url_info)
                             elif scheme not in new_versions[version_curr]['urls'][urls.index(url_filename)]['schemes']:
-                                new_versions[version_curr]['urls'][urls.index(
-                                    url_filename)]['schemes'].append(scheme)
+                                new_versions[version_curr]['urls'][urls.index(url_filename)]['schemes'].append(scheme)
 
         # If no result found : Try to find directly in content page (maybe javascript is used to display)
         if not new_versions:
@@ -792,7 +781,10 @@ class PackageSearchUpdate(object):
                                 'extension'), 'full': unquote(url_filename), 'schemes': [scheme]}
                             if version_curr not in new_versions:
                                 new_versions[version_curr] = {
-                                    'version': version_curr, 'is_prerelease': version_curr_p.is_prerelease, 'urls': [url_info]}
+                                    'version': version_curr,
+                                    'is_prerelease': version_curr_p.is_prerelease,
+                                    'urls': [url_info]
+                                }
                             else:
                                 urls = list(
                                     map(lambda x: x['full'], new_versions[version_curr]['urls']))
@@ -800,8 +792,7 @@ class PackageSearchUpdate(object):
                                     new_versions[version_curr]['urls'].append(
                                         url_info)
                                 elif scheme not in new_versions[version_curr]['urls'][urls.index(url_filename)]['schemes']:
-                                    new_versions[version_curr]['urls'][urls.index(
-                                        url_filename)]['schemes'].append(scheme)
+                                    new_versions[version_curr]['urls'][urls.index(url_filename)]['schemes'].append(scheme)
 
         # Sort by version desc
         new_versions = collections.OrderedDict(
@@ -818,8 +809,8 @@ class PackageSearchUpdate(object):
         """ Search for all new versions
         """
         cache_filename = 'versions.pkl'
-        if self._cache.check(cache_filename):
-            return self._cache.load(cache_filename)
+        # if self._cache.check(cache_filename):
+            # return self._cache.load(cache_filename)
 
         method = self.get_method()
         func_name = '_search_updates_' + method
@@ -827,11 +818,11 @@ class PackageSearchUpdate(object):
         self._versions = None
         try:
             func = getattr(self, func_name)
-            self._versions = func()
-        except Exception as e:
-            _LOGGER.warning(
-                "Method '%s' was not found or during call: %s", method, e)
+        except AttributeError as e:
+            _LOGGER.warning("Method '%s' was not found or during call: %s", method, e)
             return None
+
+        self._versions = func()
 
         self._cache.save(cache_filename, self._versions)
 
@@ -845,8 +836,7 @@ class PackageSearchUpdate(object):
 
         # Split by space and flat the list
         depends = set(flatten([depend.split() for depend in depends]))
-        build_depends = set(flatten([depend.split()
-                                     for depend in build_depends]))
+        build_depends = set(flatten([depend.split() for depend in build_depends]))
         all_depends = depends.union(build_depends)
 
         result = {

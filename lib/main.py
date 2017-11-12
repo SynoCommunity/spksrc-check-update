@@ -28,8 +28,7 @@ class Main(object):
         from .config import configs
         str_options = ""
         for (key, prop) in configs.items():
-            str_options += "  - {:<40} {} (Default: {})\n".format(
-                key, prop.get('description', ''), Config.get_default(key),)
+            str_options += "  - {:<40} {} (Default: {})\n".format(key, prop.get('description', ''), Config.get_default(key),)
 
         print("""
 Script to gather search update for spksrc package in cross/ and native/.
@@ -168,13 +167,12 @@ Examples:
             for package in self._packages:
                 if not os.path.exists(Config.get('spksrc_git_dir') + package + os.path.sep + 'Makefile'):
                     self.help()
-                    print("<package> " + package +
-                          " doesn't exist or it is not a valid spksrc package")
+                    print("<package> " + package + " doesn't exist or it is not a valid spksrc package")
                     sys.exit(2)
 
     def _command_search(self):
         self._spksrc_manager.check_update_packages()
-        pass
+        self._spksrc_manager.pprint_informations()
 
     def _command_build(self):
         pass
@@ -208,8 +206,7 @@ Examples:
 
         args = self.read_args()
 
-        logging.basicConfig(level=logging.getLevelName(
-            Config.get('debug_level')))
+        logging.basicConfig(level=Config.get('debug_level'))
 
         command = 'search'
         if args:
@@ -228,11 +225,11 @@ Examples:
 
         try:
             func = getattr(self, '_command_' + command)
-            self._versions = func()
-        except Exception as e:
+        except AttributeError as e:
             _LOGGER.warning('Command "%s" was not found or during call: %s', command, e)
             return None
 
+        self._versions = func()
 
 def main():
     logging_format = "[%(levelname)s][%(filename)s:%(lineno)s:%(funcName)s()] %(message)s"

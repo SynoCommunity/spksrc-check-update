@@ -2,7 +2,6 @@
 
 import os
 import logging
-import copy
 import pprint
 
 from multiprocessing import Pool
@@ -22,9 +21,11 @@ class PackagesManager(object):
         self._packages_requested = packages_requested
         self._packages = {}
         self._packages_build = []
-        self._cache = Cache(duration=Config.get(
-            "cache_duration_packages_manager"))
+        self._cache = Cache(duration=Config.get("cache_duration_packages_manager"))
+
         self.generate_packages_list()
+        if not self._packages_requested:
+            self._packages_requested = self._packages.keys()
 
     def _find_packages(self, path):
         """ Find all packages in a directory and return package name
@@ -75,8 +76,7 @@ class PackagesManager(object):
         self._packages = self._cache.load(cache_filename)
 
         if not self._packages:
-            packages = self._find_packages(Config.get('spksrc_git_dir') + 'cross') + self._find_packages(
-                Config.get('spksrc_git_dir') + 'native') + self._find_packages(Config.get('spksrc_git_dir') + 'spk')
+            packages = self._find_packages(Config.get('spksrc_git_dir') + 'cross') + self._find_packages(Config.get('spksrc_git_dir') + 'native') + self._find_packages(Config.get('spksrc_git_dir') + 'spk')
 
             self._packages = {}
             for package in packages:
@@ -90,14 +90,26 @@ class PackagesManager(object):
 
         search_update.search_updates()
 
-        self._packages[package]['informations'] = search_update.get_informations()
+        return [package, search_update.get_informations()]
 
     def check_update_packages(self):
         """ Print all dependencies
         """
         pool = Pool(processes=Config.get('nb_jobs'))
 
-        pool.map(self.package_search_update, self._packages)
+        packages = pool.map(self.package_search_update, self._packages_requested)
+
+        for package in packages:
+            self._packages[package[0]]['informations'] = package[1]
+
+        cache_filename = 'packages.pkl'
+        self._cache.save(cache_filename, self._packages)
+
+    def pprint_informations(self):
+        """ Print informations on packages
+        """
+        for package in self._packages_requested:
+            pprint.pprint(self._packages[package]['informations'])
 
     def pprint_deps(self, package, depth=0):
         """ Print all dependencies
