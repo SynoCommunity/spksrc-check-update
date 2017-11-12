@@ -230,8 +230,7 @@ Examples:
             func = getattr(self, '_command_' + command)
             self._versions = func()
         except Exception as e:
-            _LOGGER.warning(
-                'Command "%s" was not found or during call: %s', command, e)
+            _LOGGER.warning('Command "%s" was not found or during call: %s', command, e)
             return None
 
 

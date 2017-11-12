@@ -18,7 +18,7 @@ class MakefileParser(object):
         self._is_parsed = False
 
     def _get_parser(self):
-        """ Initialize the pyparsing parser for Makefile 
+        """ Initialize the pyparsing parser for Makefile
         """
         assign = pp.oneOf(['=', '?=', ':=', '::=', '+='])('assign')
         var_name = pp.Word(pp.alphas + '_', pp.alphanums + '_')('var')
@@ -26,8 +26,7 @@ class MakefileParser(object):
         enclosed = pp.Forward()
         nested_parents = pp.nestedExpr('$(', ')', content=enclosed)
         nested_brackets = pp.nestedExpr('${', '}', content=enclosed)
-        enclosed <<= (nested_parents | nested_brackets |
-                      pp.CharsNotIn('$(){}#\n')).leaveWhitespace()
+        enclosed <<= (nested_parents | nested_brackets | pp.CharsNotIn('$(){}#\n')).leaveWhitespace()
 
         return pp.lineStart + var_name + assign + pp.ZeroOrMore(pp.White()) + pp.ZeroOrMore(enclosed)('value') + pp.Optional(pp.pythonStyleComment)('comment')
 
@@ -73,8 +72,7 @@ class MakefileParser(object):
         if args:
             func_name = '_call_' + first_arg
             func_args = ' '.join(args)
-            _LOGGER.debug("parse_call: '%s' with args: %s",
-                          first_arg, func_args)
+            _LOGGER.debug("parse_call: '%s' with args: %s", first_arg, func_args)
             try:
                 func = getattr(self, func_name)
                 value = func(func_args, re_evaluate_values)
@@ -201,7 +199,7 @@ class MakefileParser(object):
         self._vars[var] = value
 
     def evaluate_var(self, var):
-        """ Ask to re-evaluate the values of a variable by using the values of the others variables 
+        """ Ask to re-evaluate the values of a variable by using the values of the others variables
         """
         _LOGGER.debug("evaluate_var: var: %s", var)
         if var in self._vars_not_evaluate:

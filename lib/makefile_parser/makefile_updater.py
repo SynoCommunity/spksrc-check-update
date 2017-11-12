@@ -19,7 +19,7 @@ class MakefileUpdater(object):
         self._vars = {}
 
     def _get_parser(self):
-        """ Initialize the pyparsing parser for Makefile 
+        """ Initialize the pyparsing parser for Makefile
         """
         assign = pp.oneOf(['=', '?=', ':=', '::=', '+='])('assign')
         var_name = pp.Word(pp.alphas + '_', pp.alphanums + '_')('var')
