@@ -20,27 +20,91 @@ def convert_duration(value):
 
 
 configs = {
-    'debug_level': {'default': 'INFO', 'type': int, 'convert': logging.getLevelName},
+    'debug_level': {
+        'description': 'Debug level: DEBUG, INFO, WARNING, ERROR, CRITICAL',
+        'default': 'INFO',
+        'type': int,
+        'convert': logging.getLevelName
+    },
 
-    'nb_jobs': {'default': multiprocessing.cpu_count(), 'type': int},
+    'nb_jobs': {
+        'description': 'Number of jobs',
+        'default': multiprocessing.cpu_count(),
+        'type': int
+    },
 
-    'work_dir': {'default': 'work', 'type': str},
+    'work_dir': {
+        'description': 'Work directory: Contains cache, spksrc source, ...',
+        'default': 'work',
+        'type': str
+    },
 
-    'spksrc_git_dir': {'default': '%work_dir%/spksrc-git', 'type': str},
-    'spksrc_git_uri': {'default': 'https://github.com/SynoCommunity/spksrc.git', 'type': str},
-    'spksrc_git_branch': {'default': 'master', 'type': str},
+    'spksrc_git_dir': {
+        'description': 'Root directory of spksrc',
+        'default': '%work_dir%/spksrc-git',
+        'type': str
+    },
+    'spksrc_git_uri': {
+        'description': 'Spksrc repository',
+        'default': 'https://github.com/SynoCommunity/spksrc.git',
+        'type': str
+    },
+    'spksrc_git_branch': {
+        'description': 'Default branch to checkout the spksrc repository',
+        'default': 'master',
+        'type': str
+    },
 
-    'cache_enabled': {'default': True, 'type': bool},
-    'cache_dir': {'default': '%work_dir%/cache', 'type': str},
-    'cache_duration': {'default': '7d', 'type': int, 'convert': convert_duration},
-    'cache_duration_packages_manager': {'default': '%cache_duration%', 'type': int, 'convert': convert_duration},
-    'cache_duration_search_update_download': {'default': '%cache_duration%', 'type': int, 'convert': convert_duration},
+    'cache_enabled': {
+        'description': 'Define if cache is enabled',
+        'default': True,
+        'type': bool
+    },
+    'cache_dir': {
+        'description': 'Cache directory',
+        'default': '%work_dir%/cache',
+        'type': str
+    },
+    'cache_duration': {
+        'description': 'Global cache duration',
+        'default': '7d',
+        'type': int,
+        'convert': convert_duration
+    },
+    'cache_duration_packages_manager': {
+        'description': 'Cache duration for packages list',
+        'default': '%cache_duration%',
+        'type': int,
+        'convert': convert_duration
+    },
+    'cache_duration_search_update_download': {
+        'description': 'Cache duration for package update: download page content, versions found',
+        'default': '%cache_duration%',
+        'type': int,
+        'convert': convert_duration
+    },
 
-    'build_update_deps': {'default': False, 'type': bool},
-    'build_major_release_allowed': {'default': False, 'type': bool},
-    'build_prerelease_allowed': {'default': False, 'type': bool},
+    'build_update_deps': {
+        'description': 'Update deps before build the current package',
+        'default': False,
+        'type': bool
+    },
+    'build_major_release_allowed': {
+        'description': 'Allow to update to next major version',
+        'default': False,
+        'type': bool
+    },
+    'build_prerelease_allowed': {
+        'description': 'Allow prerelease version',
+        'default': False,
+        'type': bool
+    },
 
-    'packages': {'default': [], 'type': list}
+    'packages': {
+        'description': 'List of packages in input',
+        'default': [],
+        'type': list
+    }
 }
 
 
@@ -50,13 +114,38 @@ class Config:
     regex_config_replace = re.compile('%\w+%')
 
     @staticmethod
+    def _parse_value(getter, property_name, value):
+        if type(value) is str:
+            for match in Config.regex_config_replace.findall(value):
+                replace_value = getter(match[1:-1])
+                if replace_value:
+                    if type(replace_value) is not str and value == match:
+                        value = replace_value
+                        break
+                    else:
+                        value = value.replace(match, str(replace_value))
+                else:
+                    value = value.replace(match, "")
+        return value
+
+    @staticmethod
+    def get_keys():
+        return configs.keys()
+
+    @staticmethod
     def get_default(property_name, default=None):
         """ Get default property value
         """
         prop = configs.get(property_name)
-        if prop:
-            return prop['default']
-        return default
+
+        prop = configs.get(property_name)
+        if not prop:
+            return default
+
+        value = prop.get('value') or prop.get('default')
+        value = Config._parse_value(Config.get, property_name, value)
+
+        return value
 
     @staticmethod
     def get(property_name, default=None):
@@ -70,17 +159,7 @@ class Config:
             return default
 
         value = prop.get('value') or prop.get('default')
-        if type(value) is str:
-            for match in Config.regex_config_replace.findall(value):
-                replace_value = Config.get(match[1:-1])
-                if replace_value:
-                    if type(replace_value) is not str and value == match:
-                        value = replace_value
-                        break
-                    else:
-                        value = value.replace(match, str(replace_value))
-                else:
-                    value = value.replace(match, "")
+        value = Config._parse_value(Config.get, property_name, value)
 
         value = Config.convert(prop, value)
         Config.configs_cached[property_name] = value
@@ -91,11 +170,11 @@ class Config:
     def set(property_name, value):
         """ Set new property value
         """
-        Config.clear_cache(property_name)
-
         if not property_name in configs:
-            configs[property_name] = {'default': value, 'type': str}
+            return False
+        Config.clear_cache(property_name)
         configs[property_name]['value'] = value
+        return True
 
     @staticmethod
     def clear_cache(property_name):

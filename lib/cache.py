@@ -9,6 +9,7 @@ from .config import Config
 
 _LOGGER = logging.getLogger(__name__)
 
+
 class Cache:
 
     def __init__(self, **kwargs):
@@ -25,7 +26,7 @@ class Cache:
 
         with open(path, 'wb') as f:
             pickle.dump(data, f, pickle.HIGHEST_PROTOCOL)
-        _LOGGER.debug("Save in %s" % (path,))
+        _LOGGER.debug("Save in %s", path)
 
     def check(self, filename, duration=None):
         """ Check cache from a file
@@ -35,7 +36,7 @@ class Cache:
         if os.path.exists(path):
             mtime = os.path.getmtime(path)
             if (mtime + c_duration) > time.time():
-                _LOGGER.debug("Valid cache for: %s" % (path,))
+                _LOGGER.debug("Valid cache for: %s", path)
                 return True
         return False
 

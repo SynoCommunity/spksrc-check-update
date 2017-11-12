@@ -76,12 +76,12 @@ class MakefileParser(object):
         if len(args) > 0:
             func_name = '_call_' + first_arg
             func_args = ' '.join(args)
-            _LOGGER.debug("parse_call: '%s' with args: %s" %
-                          (first_arg, func_args,))
+            _LOGGER.debug("parse_call: '%s' with args: %s",
+                          first_arg, func_args)
             try:
                 func = getattr(self, func_name)
                 value = func(func_args, re_evaluate_values)
-                _LOGGER.debug("parse_call: return %s" % (value,))
+                _LOGGER.debug("parse_call: return %s", value)
                 if type(value) is list:
                     return value
 
@@ -137,8 +137,8 @@ class MakefileParser(object):
                     self._vars_not_evaluate[result[0]['var']].pop(0)
                     self._vars[result[0]['var']].pop(0)
 
-                _LOGGER.debug("_parse_line: evalute var: %s" %
-                              (result[0]['var'],))
+                _LOGGER.debug("_parse_line: evalute var: %s",
+                              result[0]['var'])
                 self._vars_not_evaluate[result[0]
                                         ['var']].append(result[0]['value'])
                 self._vars[result[0]['var']
@@ -147,7 +147,7 @@ class MakefileParser(object):
     def parse_file(self, file):
         """ Parse a Makefile file
         """
-        _LOGGER.debug("parse_file: file: %s" % (file,))
+        _LOGGER.debug("parse_file: file: %s", file)
         file = open(file, "r")
         for line in file:
             self._parse_line(line)
@@ -157,7 +157,7 @@ class MakefileParser(object):
     def parse_text(self, text):
         """ Parse a Makefile content
         """
-        _LOGGER.debug("parse_text: text: %s" % (text,))
+        _LOGGER.debug("parse_text: text: %s", text)
         lines = text.split('\n')
         for line in lines:
             self._parse_line(line)
@@ -190,7 +190,7 @@ class MakefileParser(object):
     def set_var_values(self, var, value, value_not_evaluate=None):
         """ Set a value for a variable
         """
-        _LOGGER.debug("set_var_values: var: %s, value: %s" % (var, value,))
+        _LOGGER.debug("set_var_values: var: %s, value: %s", var, value)
         if not value_not_evaluate:
             value_not_evaluate = value
 
@@ -206,7 +206,7 @@ class MakefileParser(object):
     def evaluate_var(self, var):
         """ Ask to re-evaluate the values of a variable by using the values of the others variables 
         """
-        _LOGGER.debug("evaluate_var: var: %s" % (var,))
+        _LOGGER.debug("evaluate_var: var: %s", var)
         if var in self._vars_not_evaluate:
             self._vars[var] = []
             for v in self._vars_not_evaluate[var]:

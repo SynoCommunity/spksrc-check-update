@@ -22,7 +22,7 @@ class Tools:
 
         with open(filename, 'wb') as f:
             pickle.dump(data, f, pickle.HIGHEST_PROTOCOL)
-        _LOGGER.debug("Save in %s" % (filename,))
+        _LOGGER.debug("Save in %s", filename)
 
     @staticmethod
     def cache_check(filename, duration=3600):
@@ -31,7 +31,7 @@ class Tools:
         if os.path.exists(filename):
             mtime = os.path.getmtime(filename)
             if (mtime + duration) > time.time():
-                _LOGGER.debug("Valid cache for: %s" % (filename,))
+                _LOGGER.debug("Valid cache for: %s", filename)
                 return True
         return False
 

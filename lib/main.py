@@ -3,16 +3,15 @@
 import sys
 import os
 import getopt
-import pprint
 import logging
-from datetime import datetime
-
-import parsedatetime
 import multiprocessing
+from datetime import datetime
+import parsedatetime
 from .config import Config
 from .packages_manager import PackagesManager
 
 _LOGGER = logging.getLogger(__name__)
+
 
 class Main(object):
 
@@ -25,6 +24,12 @@ class Main(object):
         print(version.SPKSRC_UPDATER_VERSION)
 
     def help(self):
+        from .config import configs
+        str_options = ""
+        for (key, prop) in configs.items():
+            str_options += "  - {:<40} {} (Default: {})\n".format(
+                key, prop.get('description', ''), Config.get_default(key),)
+
         print("""
 Script to gather search update for spksrc package in cross/ and native/.
 
@@ -32,36 +37,33 @@ Usage:
   main.py [options] [action]
 
 Action:
-  - search: Search for new updates
-  - build: Launch build for the new packages
-  - print_deps: Prints all dependancies
-  - print_parent_deps: Prints all parent dependancies
+  - search                                  Search for new updates
+  - build                                   Launch build for the new packages
+  - print_deps                              Prints all dependancies
+  - print_parent_deps                       Prints all parent dependancies
 
 Parameters:
-  -h --help                        Show this screen.
-  -v --version                     Print version
-  -r --root=<root>                 Root directory of spksrc
-  -p --packages=<package,package>  Packages to check for update (Optional)
-  -c --disable-cache               Disable cache
-  -d --cache-duration=<duration>   Cache duration in seconds (Default: 3 days)
-  -d --debug=<level>               Debug level: DEBUG, INFO, WARNING, ERROR, CRITICAL
-  -w --work-dir=<directory>        Work directory (Default: work)
-  -m --allow-major-release         Allow to update to next major version (Default: False)
-  -a --allow-prerelease            Allow prerelease version (Default: False)
-  -u --update-deps                 Update deps before build the current package (Default: False)
-  -j --jobs                        Number of jobs (Default: max CPU core)
-  -o --option "<key>=<value>"      Set an option
+  - Global:
+    -h --help                               Show this screen.
+    -v --version                            Print version
+    -d --debug=<level>                      Debug level: DEBUG, INFO, WARNING, ERROR, CRITICAL
+    -w --work-dir=<directory>               Work directory (Default: work)
+    -r --root=<root>                        Root directory of spksrc
+    -p --packages=<package,package>         Packages to check for update
+    -j --jobs                               Number of jobs (Default: max CPU core)
+    -o --option "<key>=<value>"             Set an option
+
+  - Cache:
+    -c --disable-cache                      Disable cache
+    -d --cache-duration=<duration>          Cache duration in seconds (Default: 3 days)
+
+  - Build:
+    -m --allow-major-release                Allow to update to next major version (Default: False)
+    -a --allow-prerelease                   Allow prerelease version (Default: False)
+    -u --update-deps                        Update deps before build the current package (Default: False)
 
 Available options:
-  - packages
-  - verbose
-  - cache_enabled
-  - update_deps
-  - allow_major_release
-  - allow_prerelease
-  - cache_duration
-  - work_dir
-  - nb_jobs
+{}
 
 Examples:
 
@@ -80,20 +82,22 @@ Examples:
   - Launch build for the new release of ffmpeg and all its dependencies:
         python main.py -r ../spksrc -p cross/ffmpeg --allow-prerelease build
 
-""")
+""".format(str_options))
 
     def read_args(self):
         try:
-            opts, args = getopt.getopt(sys.argv[1:], "hcvmaur:p:d:w:j:", [
+            opts, args = getopt.getopt(sys.argv[1:], "hcvmaur:p:d:w:j:o:", [
                 "jobs="
-                "root=",
-                "packages=",
                 "debug=",
                 "work-dir=",
+                "root=",
+                "packages=",
+                "otpion=",
                 "version",
                 "disable-cache",
-                "allow-prerelease",
                 "update-deps",
+                "allow-major-release",
+                "allow-prerelease",
             ])
         except getopt.GetoptError as error:
             self.help()
@@ -110,7 +114,8 @@ Examples:
             elif opt in ("-c", "--disable-cache"):
                 Config.set('cache_enabled', False)
             elif opt in ("-r", "--root"):
-                Config.set('root', arg.rstrip(os.path.sep) + os.path.sep)
+                Config.set('spksrc_git_dir', arg.rstrip(
+                    os.path.sep) + os.path.sep)
             elif opt in ("-p", "--packages"):
                 Config.set('packages', arg.strip(os.path.sep).split(','))
             elif opt in ("-d", "--debug"):
@@ -131,16 +136,28 @@ Examples:
                 Config.set('update_deps', True)
             elif opt in ("-j", "--jobs"):
                 Config.set('nb_jobs', max(int(arg), 1))
+            elif opt in ("-o", "--option"):
+                option = arg.split('=')
+                if len(option) > 1:
+                    if not Config.set(option[0], option[1]):
+                        self.help()
+                        _LOGGER.error("Option %s is unknown", option[0])
+                        sys.exit(2)
+                else:
+                    self.help()
+                    _LOGGER.error("Invalid option format: %s", arg)
+                    sys.exit(2)
 
         return args
 
     def check_spksc_dir(self):
-        check = os.path.exists(Config.get('root'))
-        check = check & os.path.isdir(Config.get('root'))
-        check = check & os.path.isdir(Config.get('root') + 'cross')
-        check = check & os.path.isdir(Config.get('root') + 'native')
-        check = check & os.path.isdir(Config.get('root') + 'spk')
-        check = check & os.path.isdir(Config.get('root') + 'toolchains')
+        check = os.path.exists(Config.get('spksrc_git_dir'))
+        check = check & os.path.isdir(Config.get('spksrc_git_dir'))
+        check = check & os.path.isdir(Config.get('spksrc_git_dir') + 'cross')
+        check = check & os.path.isdir(Config.get('spksrc_git_dir') + 'native')
+        check = check & os.path.isdir(Config.get('spksrc_git_dir') + 'spk')
+        check = check & os.path.isdir(
+            Config.get('spksrc_git_dir') + 'toolchains')
 
         if not check:
             self.help()
@@ -150,7 +167,7 @@ Examples:
     def check_packages_list(self):
         if Config.get('packages'):
             for package in Config.get('packages'):
-                if not os.path.exists(Config.get('root') + package + os.path.sep + 'Makefile'):
+                if not os.path.exists(Config.get('spksrc_git_dir') + package + os.path.sep + 'Makefile'):
                     self.help()
                     print("<package> " + package +
                           " doesn't exist or it is not a valid spksrc package")
@@ -192,13 +209,14 @@ Examples:
 
         args = self.read_args()
 
-        logging.basicConfig(level=logging.getLevelName(Config.get('debug_level')))
+        logging.basicConfig(level=logging.getLevelName(
+            Config.get('debug_level')))
 
         command = 'search'
         if args:
             command = args[0]
 
-        if not Config.get('root'):
+        if not Config.get('spksrc_git_dir'):
             self.help()
             print("<root> is required")
             sys.exit(2)
@@ -213,7 +231,8 @@ Examples:
             func = getattr(self, '_command_' + command)
             self._versions = func()
         except Exception as e:
-            _LOGGER.warning('Command "%s" was not found or during call: %s' % (command, e,))
+            _LOGGER.warning(
+                'Command "%s" was not found or during call: %s', command, e)
             return None
 
 

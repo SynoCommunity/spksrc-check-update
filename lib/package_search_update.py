@@ -25,6 +25,7 @@ from .makefile_parser.makefile_parser import MakefileParser
 
 _LOGGER = logging.getLogger(__name__)
 
+
 class PackageSearchUpdate(object):
 
     # Regex pattern to match version
@@ -41,9 +42,10 @@ class PackageSearchUpdate(object):
         'tgz',
         '7z'
     ]
-    regex_extensions_replace_from = "|".join([re.escape(re.escape(e)) for e in extensions_to_download])
-    regex_extensions_replace_to= "|".join([re.escape(e) for e in extensions_to_download])
-
+    regex_extensions_replace_from = "|".join(
+        [re.escape(re.escape(e)) for e in extensions_to_download])
+    regex_extensions_replace_to = "|".join(
+        [re.escape(e) for e in extensions_to_download])
 
     # Default cache dir to save
     default_cache_dir = 'cache'
@@ -57,18 +59,19 @@ class PackageSearchUpdate(object):
         self._cache_duration = PackageSearchUpdate.default_cache_duration
         self._package = package
         self._path = path
-        self._cache_dir = os.path.join(PackageSearchUpdate.default_cache_dir, package)
+        self._cache_dir = os.path.join(
+            PackageSearchUpdate.default_cache_dir, package)
         self._urls_downloaded = {}
         self._parser = None
         self._versions = None
         self._current_version = None
 
-        _LOGGER.debug("path: %s" % (path,))
+        _LOGGER.debug("path: %s", path)
 
     def log(self, message):
         """ Print a message with a prefix
         """
-        _LOGGER.info("[Package:%s]: %s" % (self._package,message,))
+        _LOGGER.info("[Package:%s]: %s", self._package, message)
 
     def set_verbose(self, verbose):
         """ Define if versose mode
@@ -163,11 +166,11 @@ class PackageSearchUpdate(object):
             func = getattr(self, func_name)
             self._current_version = func()
         except Exception as e:
-            _LOGGER.warning('Method "%s" was not found or during call: %s', method, e)
+            _LOGGER.warning(
+                'Method "%s" was not found or during call: %s', method, e)
             return None
 
         return self._current_version
-
 
     def _search_updates_git(self):
         """ Search new tags or commits in git repository
@@ -179,7 +182,7 @@ class PackageSearchUpdate(object):
         # Get current Hash of package
         git_hash = self.get_version()
 
-        _LOGGER.info("Current git hash: %s" % (git_hash,))
+        _LOGGER.info("Current git hash: %s", git_hash)
 
         # State file to determine when the repository is cloned
         git_is_cloned = os.path.join(self._cache_dir, '.git_clone')
@@ -217,12 +220,12 @@ class PackageSearchUpdate(object):
             for c in repo.iter_commits(git_hash + '..HEAD'):
                 tag = next((tag for tag in repo.tags if tag.commit == c), None)
                 if tag is not None:
-                    new_versions[ str(tag) ] = {'hash': str(tag)}
+                    new_versions[str(tag)] = {'hash': str(tag)}
         else:
             # No tags: list new commits
             self.log("No tags: Get new versions from commits")
             for c in repo.iter_commits(git_hash + '..HEAD'):
-                new_versions[ str(c) ] = {'hash': str(c)}
+                new_versions[str(c)] = {'hash': str(c)}
 
         return new_versions
 
@@ -262,7 +265,6 @@ class PackageSearchUpdate(object):
             open(svn_is_checkout, 'w').close()
             self.log("Repository checkout")
 
-
         repo = svn.local.LocalClient(svn_path)
 
         # Update repository
@@ -273,9 +275,10 @@ class PackageSearchUpdate(object):
 
         # Get new revision in /tags repository
         self.log("Get new revisions in /tags directory")
-        tags_rev = repo.log_default(None, None, None, '^/tags', None, svn_rev_next, None)
+        tags_rev = repo.log_default(
+            None, None, None, '^/tags', None, svn_rev_next, None)
         for rev in tags_rev:
-            new_versions[ str(rev.revision) ] = {'rev': str(rev.revision)}
+            new_versions[str(rev.revision)] = {'rev': str(rev.revision)}
 
         # Return in reversed order
         return collections.OrderedDict(reversed(list(new_versions.items())))
@@ -305,7 +308,8 @@ class PackageSearchUpdate(object):
                     file = infos[-1]
                     if infos[0][0] == 'd':
                         file += '/'
-                    hrefs.append({'href': file, 'href_p': urlparse(file), 'content': ''})
+                    hrefs.append(
+                        {'href': file, 'href_p': urlparse(file), 'content': ''})
             except:
                 self.log('Error to connect on FTP')
                 return None
@@ -371,20 +375,21 @@ class PackageSearchUpdate(object):
                         base_url = 'http://' + project + '.googlecode.com/files/'
                         for info in j['downloads']:
                             href = base_url + info['filename']
-                            hrefs.append({'href': href, 'href_p': urlparse(href), 'content': ''})
+                            hrefs.append(
+                                {'href': href, 'href_p': urlparse(href), 'content': ''})
                 else:
                     soup = BeautifulSoup(content, "html5lib")
                     for item in soup.find_all("a"):
                         href = item.get('href')
                         if href:
-                            hrefs.append({'href': href, 'href_p': urlparse(href), 'content': str(item.next).strip()})
+                            hrefs.append({'href': href, 'href_p': urlparse(
+                                href), 'content': str(item.next).strip()})
             else:
                 # In case of code different to 200
                 self.log('Error to download page: ' + url)
                 return None
 
         return {'type': url_p.scheme, 'url': url, 'url_p': url_p, 'hrefs': hrefs, 'history': history, 'content': content}
-
 
     def _search_download_urls(self):
         """ Search link or content link which contains 'download'
@@ -405,24 +410,24 @@ class PackageSearchUpdate(object):
                     content = href['href'].path + ' ' + href['content']
                     match = re.search('download', content, re.IGNORECASE)
                     if match:
-                        _LOGGER.debug("regex-search match: %s" % (content,))
+                        _LOGGER.debug("regex-search match: %s", content)
 
                         # Create full link
                         url_found = ''
                         if len(href['href_p'].netloc) > 0:
-                            url_found = href['href_p'].scheme + '://' + href['href_p'].netloc
+                            url_found = href['href_p'].scheme + \
+                                '://' + href['href_p'].netloc
                         else:
                             if href['href_p'].path[0] == '/':
-                                url_found = data['url_p'].scheme + '://' + data['url_p'].netloc
+                                url_found = data['url_p'].scheme + \
+                                    '://' + data['url_p'].netloc
                             else:
                                 url_found = url
                         url_found += '/' + href['href_p'].path.lstrip('/')
 
                         if url not in urls and url not in self._urls_downloaded:
-                          urls.append(url)
+                            urls.append(url)
         return urls
-
-
 
     def _search_version_urls(self):
         """ Search link or content link which terminates by a directory ending by a version number and may be a html or php file
@@ -438,9 +443,11 @@ class PackageSearchUpdate(object):
                 domains.append(data['url_p'].netloc)
 
         # Regex for href attribute
-        regex_version_href = re.compile('(([0-9]+)([._-]([0-9][0-9a-zA-Z]*|[0-9a-zA-Z]*[0-9]))+(-[a-zA-Z0-9_]+)*)(/(\w+.(html|php))?)?$')
+        regex_version_href = re.compile(
+            '(([0-9]+)([._-]([0-9][0-9a-zA-Z]*|[0-9a-zA-Z]*[0-9]))+(-[a-zA-Z0-9_]+)*)(/(\w+.(html|php))?)?$')
         # Regex for tag content
-        regex_version_content = re.compile('^(([0-9]+)([._-]([0-9][0-9a-zA-Z]*|[0-9a-zA-Z]*[0-9]))+(-[a-zA-Z0-9_]+))*$')
+        regex_version_content = re.compile(
+            '^(([0-9]+)([._-]([0-9][0-9a-zA-Z]*|[0-9a-zA-Z]*[0-9]))+(-[a-zA-Z0-9_]+))*$')
 
         urls = []
         for url, data in self._urls_downloaded.items():
@@ -448,34 +455,38 @@ class PackageSearchUpdate(object):
                 version = None
 
                 if href['href_p'].scheme in schemes and href['href_p'].netloc in domains:
-                    match_href = regex_version_href.search(str(href['href_p'].path))
+                    match_href = regex_version_href.search(
+                        str(href['href_p'].path))
                     if match_href:
                         version = parse_version(match_href.group(1))
                     if not version:
                         if len(href['content']) > 0:
-                            match_content = regex_version_content.search(href['content'])
+                            match_content = regex_version_content.search(
+                                href['content'])
                             if match_content:
                                 version = parse_version(match_content.group(1))
                 if version and version >= self._version_p:
-                    _LOGGER.debug("regex-search match: %s, %s" % (href['href_p'].path, href['content'],))
+                    _LOGGER.debug("regex-search match: %s, %s",
+                                  href['href_p'].path, href['content'])
 
                     # Create full link
                     url_found = ''
                     if len(href['href_p'].netloc) > 0:
-                        url_found = href['href_p'].scheme + '://' + href['href_p'].netloc
+                        url_found = href['href_p'].scheme + \
+                            '://' + href['href_p'].netloc
                     else:
                         if href['href_p'].path[0] == '/':
-                            url_found = data['url_p'].scheme + '://' + data['url_p'].netloc
+                            url_found = data['url_p'].scheme + \
+                                '://' + data['url_p'].netloc
                         else:
                             url_found = url
                     url_found += '/' + href['href_p'].path.lstrip('/')
 
                     if url_found not in urls and url_found not in self._urls_downloaded:
-                      urls.append(url_found)
+                        urls.append(url_found)
         return urls
 
-
-    def _get_url_data(self, url, depth = 0, can_remove_version = True):
+    def _get_url_data(self, url, depth=0, can_remove_version=True):
         """ Get data for an url.
         Depth define the path to remove from the url
         """
@@ -493,20 +504,25 @@ class PackageSearchUpdate(object):
                 return None
             if path_splitted[1] == 'downloads':
                 path_splitted.remove('downloads')
-                url_to_request = url_to_request_base + '/'.join(path_splitted) + '/' + directories[depth]
+                url_to_request = url_to_request_base + \
+                    '/'.join(path_splitted) + '/' + directories[depth]
             else:
-                url_to_request = url_to_request_base + '/'.join(path_splitted[0:3]) + '/' + directories[depth]
+                url_to_request = url_to_request_base + \
+                    '/'.join(path_splitted[0:3]) + '/' + directories[depth]
 
         elif url_p.netloc == 'files.pythonhosted.org':
             if depth > 0:
                 return None
             # For files.pythonhosted.org, get the package information
-            url_to_request = 'https://pypi.python.org/pypi/' + path_splitted[-1]
+            url_to_request = 'https://pypi.python.org/pypi/' + \
+                path_splitted[-1]
 
         elif url_p.netloc.endswith('.googlecode.com'):
             # For .googlecode.com, get JSON of files list
             project = url_p.netloc[:-15]
-            url_to_request = 'https://www.googleapis.com/storage/v1/b/google-code-archive/o/v2%2Fcode.google.com%2F' + project + '%2Fdownloads-page-' + str(depth + 1) + '.json?alt=media&stripTrailingSlashes=false'
+            url_to_request = 'https://www.googleapis.com/storage/v1/b/google-code-archive/o/v2%2Fcode.google.com%2F' + \
+                project + '%2Fdownloads-page-' + \
+                str(depth + 1) + '.json?alt=media&stripTrailingSlashes=false'
 
         elif url_p.netloc == 'launchpad.net':
             if '+download' in path_splitted:
@@ -515,7 +531,6 @@ class PackageSearchUpdate(object):
         # If path contains version, increment depth
         if can_remove_version and self._version in path_splitted:
             depth += 1
-
 
         # Stop if depth > path len
         if depth >= len(path_splitted):
@@ -540,7 +555,8 @@ class PackageSearchUpdate(object):
                 return None
 
             url_to_request_base = 'https://sourceforge.net'
-            path_splitted = ['', 'projects'] + path_splitted[1:2] + ['files'] + path_splitted[2:]
+            path_splitted = ['', 'projects'] + \
+                path_splitted[1:2] + ['files'] + path_splitted[2:]
 
         elif url_p.netloc == 'downloads.sourceforge.net':
             if len(path_splitted) > 2 and path_splitted[1] == 'project':
@@ -548,13 +564,15 @@ class PackageSearchUpdate(object):
                     return None
 
                 url_to_request_base = 'https://sourceforge.net'
-                path_splitted = ['', 'projects'] + path_splitted[2:3] + ['files'] + path_splitted[3:]
+                path_splitted = ['', 'projects'] + \
+                    path_splitted[2:3] + ['files'] + path_splitted[3:]
             else:
                 if len(path_splitted) < 2:
                     return None
 
                 url_to_request_base = 'https://sourceforge.net'
-                path_splitted = ['', 'projects'] + path_splitted[1:2] + ['files'] + path_splitted[2:]
+                path_splitted = ['', 'projects'] + \
+                    path_splitted[1:2] + ['files'] + path_splitted[2:]
 
         # If url_to_request was not defined in specific case
         if not url_to_request:
@@ -573,15 +591,14 @@ class PackageSearchUpdate(object):
         if not content_request:
             return None
 
-        self._urls_downloaded[ url_to_request ] = content_request
-
+        self._urls_downloaded[url_to_request] = content_request
 
         # Check for redirect
         # And download page to catch specific case
         # Ex: Google Code redirect to github
         req_url_p = urlparse(content_request['url'])
         if len(content_request['history']) > 0 and (content_request['url_p'].netloc != req_url_p.netloc or content_request['url_p'].path != req_url_p.path):
-            self.log("Check redirection to: "+content_request['url'])
+            self.log("Check redirection to: " + content_request['url'])
             depth = 0
             while True:
                 text = self._get_url_data(content_request['url'], depth)
@@ -591,7 +608,6 @@ class PackageSearchUpdate(object):
 
         return True
 
-
     def _generate_regex_filename_path(self):
         """ Return a regex to find the filename with version, extension and path
         """
@@ -600,19 +616,22 @@ class PackageSearchUpdate(object):
         tmp_parser.evaluate_var('PKG_DIST_NAME')
         filename = tmp_parser.get_var_values('PKG_DIST_NAME')
 
-        regex_path =  '((([\w/:]*)))'
+        regex_path = '((([\w/:]*)))'
         if 'XXXVERXXX' not in filename[0]:
             tmp_parser.evaluate_var('PKG_DIST_SITE')
-            pkg_site_p = urlparse(tmp_parser.get_var_values('PKG_DIST_SITE')[0])
+            pkg_site_p = urlparse(
+                tmp_parser.get_var_values('PKG_DIST_SITE')[0])
             path = pkg_site_p.path.rstrip('/') + '/'
-            regex_path =  re.escape(path).replace('XXXVERXXX', PackageSearchUpdate.regex_version)
+            regex_path = re.escape(path).replace(
+                'XXXVERXXX', PackageSearchUpdate.regex_version)
 
-        regex_filename_path = '(' + regex_path + '(?P<filename>' + re.escape(filename[0]).replace('XXXVERXXX', PackageSearchUpdate.regex_version) + '))'
-        regex_filename_path = re.sub('(' + PackageSearchUpdate.regex_extensions_replace_from + ')', '\.(?P<extension>' + PackageSearchUpdate.regex_extensions_replace_to + ')', regex_filename_path)
-        _LOGGER.debug("regex_filename_path: %s" % (regex_filename_path,))
+        regex_filename_path = '(' + regex_path + '(?P<filename>' + re.escape(
+            filename[0]).replace('XXXVERXXX', PackageSearchUpdate.regex_version) + '))'
+        regex_filename_path = re.sub('(' + PackageSearchUpdate.regex_extensions_replace_from + ')',
+                                     '\.(?P<extension>' + PackageSearchUpdate.regex_extensions_replace_to + ')', regex_filename_path)
+        _LOGGER.debug("regex_filename_path: %s", regex_filename_path)
 
         return re.compile(regex_filename_path)
-
 
     def _generate_regex_filename(self):
         """ Return a regex to find the filename with version and extension
@@ -622,25 +641,26 @@ class PackageSearchUpdate(object):
         tmp_parser.evaluate_var('PKG_DIST_NAME')
         filename = tmp_parser.get_var_values('PKG_DIST_NAME')
 
-        regex_filename = '(?P<filename>' + re.escape(filename[0]).replace('XXXVERXXX', PackageSearchUpdate.regex_version) + ')($|/)'
-        regex_filename = re.sub('(\\\.tar\\\.lz|\\\.tar\\\.bz2|\\\.tar\\\.gz|\\\.tar\\\.xz|\\\.tar\\\.bz2|\\\.zip|\\\.rar|\\\.tgz|\\\.7z)', '\.(?P<extension>tar\.lz|tar\.bz2|tar\.gz|tar\.xz|tar\.bz2|zip|rar|tgz|7z)', regex_filename)
-        _LOGGER.debug("regex_filename: %s" % (regex_filename,))
+        regex_filename = '(?P<filename>' + re.escape(filename[0]).replace(
+            'XXXVERXXX', PackageSearchUpdate.regex_version) + ')($|/)'
+        regex_filename = re.sub('(\\\.tar\\\.lz|\\\.tar\\\.bz2|\\\.tar\\\.gz|\\\.tar\\\.xz|\\\.tar\\\.bz2|\\\.zip|\\\.rar|\\\.tgz|\\\.7z)',
+                                '\.(?P<extension>tar\.lz|tar\.bz2|tar\.gz|tar\.xz|tar\.bz2|zip|rar|tgz|7z)', regex_filename)
+        _LOGGER.debug("regex_filename: %s", regex_filename)
 
         return re.compile(regex_filename)
-
 
     def _generate_regex_version(self):
         """ Return a regex to find the version based on the current version
         """
         tmp_parser = copy.copy(self.get_parser())
         regex_version = re.escape(self._version)
-        regex_version = re.sub('\-[a-zA-Z0-9_]+', '\-[a-zA-Z0-9_]+', regex_version)
+        regex_version = re.sub(
+            '\-[a-zA-Z0-9_]+', '\-[a-zA-Z0-9_]+', regex_version)
         regex_version = re.sub('[0-9]+', '[0-9]+', regex_version)
         regex_version = '(' + regex_version + ')'
-        _LOGGER.debug("regex_version: %s" % (regex_version,))
+        _LOGGER.debug("regex_version: %s", regex_version)
 
         return re.compile(regex_version)
-
 
     def _search_updates_common(self):
         """ Search for update for FTP and HTTP link
@@ -664,7 +684,8 @@ class PackageSearchUpdate(object):
 
         path_file_cached = os.path.join(self._cache_dir, 'list.pkl')
 
-        download = not self._cache_enabled or not Tools.cache_check(path_file_cached, self._cache_duration)
+        download = not self._cache_enabled or not Tools.cache_check(
+            path_file_cached, self._cache_duration)
         if download:
             depth = 0
             while True:
@@ -695,7 +716,6 @@ class PackageSearchUpdate(object):
                         break
                     depth += 1
 
-
             # Check for download URL in the page
             #download_urls = self._search_download_urls()
             download_urls = []
@@ -716,7 +736,6 @@ class PackageSearchUpdate(object):
         else:
             self.log("Use cached file: " + path_file_cached)
             self._urls_downloaded = Tools.cache_load(path_file_cached)
-
 
         self.log("Check for filename in pages")
 
@@ -742,27 +761,33 @@ class PackageSearchUpdate(object):
                             scheme = href['href_p'].scheme
                             url_filename += href['href_p'].netloc
                         else:
-                            scheme =  data['url_p'].scheme
+                            scheme = data['url_p'].scheme
                             url_filename += data['url_p'].netloc
 
                         url_filename = url_filename + '/'
                         if href['href_p'].path[0] != '/':
                             url_filename += data['url_p'].path.strip('/') + '/'
 
-                        url_filename += href['href_p'].path[0:match.end()].strip('/')
+                        url_filename += href['href_p'].path[0:match.end()
+                                                            ].strip('/')
 
                         if scheme == '':
                             scheme = 'https'
 
-                        url_info = {'filename': unquote(match.group('filename')), 'extensions': match.group('extension'), 'full': unquote(url_filename), 'schemes': [scheme]}
+                        url_info = {'filename': unquote(match.group('filename')), 'extensions': match.group(
+                            'extension'), 'full': unquote(url_filename), 'schemes': [scheme]}
                         if version_curr not in new_versions:
-                            new_versions[ version_curr ] = {'version': version_curr, 'is_prerelease': version_curr_p.is_prerelease, 'urls': [ url_info ]}
+                            new_versions[version_curr] = {
+                                'version': version_curr, 'is_prerelease': version_curr_p.is_prerelease, 'urls': [url_info]}
                         else:
-                            urls = list(map(lambda x: x['full'], new_versions[ version_curr ]['urls']))
+                            urls = list(
+                                map(lambda x: x['full'], new_versions[version_curr]['urls']))
                             if url_filename not in urls:
-                                new_versions[ version_curr ]['urls'].append(url_info)
-                            elif scheme not in new_versions[ version_curr ]['urls'][ urls.index(url_filename) ]['schemes']:
-                                new_versions[ version_curr ]['urls'][ urls.index(url_filename) ]['schemes'].append(scheme)
+                                new_versions[version_curr]['urls'].append(
+                                    url_info)
+                            elif scheme not in new_versions[version_curr]['urls'][urls.index(url_filename)]['schemes']:
+                                new_versions[version_curr]['urls'][urls.index(
+                                    url_filename)]['schemes'].append(scheme)
 
         # If no result found : Try to find directly in content page (maybe javascript is used to display)
         if len(new_versions) == 0:
@@ -782,40 +807,44 @@ class PackageSearchUpdate(object):
                                 scheme = href_p.scheme
                                 url_filename += href_p.netloc
                             else:
-                                scheme =  data['url_p'].scheme
+                                scheme = data['url_p'].scheme
                                 url_filename += data['url_p'].netloc
 
                             url_filename = url_filename + '/'
                             if href_p.path[0] != '/':
-                                url_filename += data['url_p'].path.strip('/') + '/'
+                                url_filename += data['url_p'].path.strip(
+                                    '/') + '/'
 
                             url_filename += href_p.path
 
                             if scheme == '':
                                 scheme = 'https'
 
-                            url_info = {'filename': unquote(match.group('filename')), 'extensions': match.group('extension'), 'full': unquote(url_filename), 'schemes': [scheme]}
+                            url_info = {'filename': unquote(match.group('filename')), 'extensions': match.group(
+                                'extension'), 'full': unquote(url_filename), 'schemes': [scheme]}
                             if version_curr not in new_versions:
-                                new_versions[ version_curr ] = {'version': version_curr, 'is_prerelease': version_curr_p.is_prerelease, 'urls': [ url_info ]}
+                                new_versions[version_curr] = {
+                                    'version': version_curr, 'is_prerelease': version_curr_p.is_prerelease, 'urls': [url_info]}
                             else:
-                                urls = list(map(lambda x: x['full'], new_versions[ version_curr ]['urls']))
+                                urls = list(
+                                    map(lambda x: x['full'], new_versions[version_curr]['urls']))
                                 if url_filename not in urls:
-                                    new_versions[ version_curr ]['urls'].append(url_info)
-                                elif scheme not in new_versions[ version_curr ]['urls'][ urls.index(url_filename) ]['schemes']:
-                                    new_versions[ version_curr ]['urls'][ urls.index(url_filename) ]['schemes'].append(scheme)
-
+                                    new_versions[version_curr]['urls'].append(
+                                        url_info)
+                                elif scheme not in new_versions[version_curr]['urls'][urls.index(url_filename)]['schemes']:
+                                    new_versions[version_curr]['urls'][urls.index(
+                                        url_filename)]['schemes'].append(scheme)
 
         # Sort by version desc
-        new_versions = collections.OrderedDict(sorted(new_versions.items(), key=lambda x: parse_version(x[0]), reverse=False))
+        new_versions = collections.OrderedDict(
+            sorted(new_versions.items(), key=lambda x: parse_version(x[0]), reverse=False))
 
         return new_versions
-
 
     def _search_updates_wget(self):
         """ Search wget method: Call common method
         """
         return self._search_updates_common()
-
 
     def search_updates(self):
         """ Search for all new versions
@@ -836,23 +865,24 @@ class PackageSearchUpdate(object):
             func = getattr(self, func_name)
             self._versions = func()
         except Exception as e:
-            _LOGGER.warning("Method '%s' was not found or during call: %s" % (method, e,))
+            _LOGGER.warning(
+                "Method '%s' was not found or during call: %s", method, e)
             return None
 
         Tools.cache_save(path_file_cached, self._versions)
 
         return self._versions
 
-
     def get_informations(self):
         depends = self.get_parser().get_var_values('DEPENDS', [])
         build_depends = self.get_parser().get_var_values('BUILD_DEPENDS', [])
 
-        flatten = lambda l: [item for sublist in l for item in sublist]
+        def flatten(l): return [item for sublist in l for item in sublist]
 
         # Split by space and flat the list
-        depends = set(flatten([depend.split() for depend in depends])) 
-        build_depends = set(flatten([depend.split() for depend in build_depends]))
+        depends = set(flatten([depend.split() for depend in depends]))
+        build_depends = set(flatten([depend.split()
+                                     for depend in build_depends]))
         all_depends = depends.union(build_depends)
 
         result = {
@@ -865,5 +895,3 @@ class PackageSearchUpdate(object):
         }
 
         return result
-
-

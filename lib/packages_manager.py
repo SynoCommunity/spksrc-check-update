@@ -39,14 +39,14 @@ class PackagesManager(object):
     def get_makefile_path(self, package):
         """ Return Makefile path of a package
         """
-        return os.path.join(Config.get('root'), package, 'Makefile')
+        return os.path.join(Config.get('spksrc_git_dir'), package, 'Makefile')
 
     def generate_package_informations(self, package):
         if not package in self._packages:
             makefile_path = self.get_makefile_path(package)
 
             if not os.path.exists(makefile_path):
-                _LOGGER.warning("Package %s doesn't exist !" % (package,))
+                _LOGGER.warning("Package %s doesn't exist !", package)
                 return
 
             parser = MakefileParser()
@@ -85,8 +85,8 @@ class PackagesManager(object):
             packages_cache, Config.get('cache_duration_packages_manager'))
 
         if not self._packages:
-            packages = self._find_packages(Config.get('root') + 'cross') + self._find_packages(
-                Config.get('root') + 'native') + self._find_packages(Config.get('root') + 'spk')
+            packages = self._find_packages(Config.get('spksrc_git_dir') + 'cross') + self._find_packages(
+                Config.get('spksrc_git_dir') + 'native') + self._find_packages(Config.get('spksrc_git_dir') + 'spk')
 
             self._packages = {}
             for package in packages:
