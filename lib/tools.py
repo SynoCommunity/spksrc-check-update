@@ -5,6 +5,7 @@ import pickle
 import time
 import logging
 import inspect
+from pkg_resources import parse_version
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -12,35 +13,40 @@ _LOGGER = logging.getLogger(__name__)
 class Tools:
 
     @staticmethod
-    def cache_save(filename, data):
-        """ Save cache in a file
+    def get_next_major_version(version):
+        """
+        Given a parsed version from pkg_resources.parse_version, returns a new
+        version string with the next minor version.
+
+        Examples
+        ========
+        >>> _next_major_version(pkg_resources.parse_version('1.2.3'))
+        '2.0.0'
         """
 
-        parent_dir = os.path.dirname(filename)
-        if not os.path.exists(parent_dir):
-            os.makedirs(parent_dir)
+        if hasattr(version, 'base_version'):
+            # New version parsing from setuptools >= 8.0
+            if version.base_version:
+                parts = version.base_version.split('.')
+            else:
+                parts = []
+        else:
+            parts = []
+            for part in version:
+                if part.startswith('*'):
+                    break
+                parts.append(part)
 
-        with open(filename, 'wb') as f:
-            pickle.dump(data, f, pickle.HIGHEST_PROTOCOL)
-        _LOGGER.debug("Save in %s", filename)
+        parts = [p for p in parts]
 
-    @staticmethod
-    def cache_check(filename, duration=3600):
-        """ Check cache from a file
-        """
-        if os.path.exists(filename):
-            mtime = os.path.getmtime(filename)
-            if (mtime + duration) > time.time():
-                _LOGGER.debug("Valid cache for: %s", filename)
-                return True
-        return False
+        if len(parts) < 3:
+            parts += [0] * (3 - len(parts))
 
-    @staticmethod
-    def cache_load(filename, duration=None):
-        """ Load cache from a file
-        """
-        if not duration and os.path.exists(filename) or duration and Tools.cache_check(filename, duration):
-            with open(filename, 'rb') as f:
-                return pickle.load(f)
+        major, minor, micro = parts[:3]
 
-        return None
+        try:
+            major = int(major)
+        except:
+            return None
+
+        return parse_version('{0}.{1}.{2}'.format(major + 1, 0, 0))

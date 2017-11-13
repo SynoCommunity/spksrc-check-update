@@ -2,12 +2,13 @@
 
 import os
 import logging
-import pprint
 
+from pkg_resources import parse_version
 from multiprocessing import Pool
 
 from .config import Config
 from .cache import Cache
+from .tools import Tools
 from .makefile_parser.makefile_parser import MakefileParser
 from .package_search_update import PackageSearchUpdate
 from .package_builder import PackageBuilder
@@ -127,20 +128,73 @@ class PackagesManager(object):
         cache_filename = 'packages.pkl'
         self._cache.save(cache_filename, self._packages)
 
+    def check_version_isvalid(self, current, new):
+        if not Config.get('build_prerelease_allowed') and new['is_prerelease']:
+            return False
+
+        current_p = parse_version(current)
+        new_p = parse_version(new['version'])
+        if Config.get('build_major_release_allowed'):
+            return new_p > current_p
+
+        major_version = Tools.get_next_major_version(current_p)
+        if major_version and new_p >= major_version:
+            return False
+
+        return new_p > current_p
+
+    def get_next_version(self, package):
+        """ Get the next version to update using the parameters (allow_major_release, ...) """
+        if package not in self._packages:
+            return None
+
+        if not self._packages[package]['informations']['versions']:
+            return None
+
+        current_version = self._packages[package]['informations']['version']
+
+        result = None
+        if self._packages[package]['informations']['method'] == 'common':
+            result = None
+            for _, new in self._packages[package]['informations']['versions'].items():
+                if self.check_version_isvalid(current_version, new):
+                    result = new
+
+        else:
+            result = {'version': next(iter(self._packages[package]['informations']['versions'])) }
+
+        return result
+
+
+
     def get_package(self, package):
         """ Return package informations
         """
         return self._packages[package]
 
-    def pprint_informations(self):
-        """ Print informations on packages
+
+
+    def pprint_next_version(self):
+        """ Print the next version to update using the parameters (allow_major_release, ...)
+        """
+        for package in self._packages_requested:
+            next_version = self.get_next_version(package)
+            new_version_state = "NO"
+            new_version = ""
+            if next_version:
+                new_version = next_version['version']
+                if self._packages[package]['informations']['version'] != new_version:
+                    new_version_state = "YES"
+
+            print("{:<30} {:<10} {:<30} {:<30}".format(package, new_version_state, self._packages[package]['informations']['version'], new_version))
+
+    def pprint_new_versions(self):
+        """ Print new versions on packages
         """
         for package in self._packages_requested:
             print("{} ({}):".format(package, self._packages[package]['informations']['version']))
             for (version, _) in self._packages[package]['informations']['versions'].items():
                 print(" - {}".format(version))
-
-            # pprint.pprint(self._packages[package]['informations'])
 
     def pprint_deps(self, package, depth=0):
         """ Print all dependencies

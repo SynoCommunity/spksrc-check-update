@@ -39,6 +39,7 @@ Usage:
 
 Action:
   - search                                  Search for new updates
+  - search_all                              Search for new updates and print all new versions
   - build                                   Launch build for the new packages
   - print_deps                              Prints all dependancies
   - print_parent_deps                       Prints all parent dependancies
@@ -173,7 +174,11 @@ Examples:
 
     def _command_search(self):
         self._spksrc_manager.check_update_packages()
-        self._spksrc_manager.pprint_informations()
+        self._spksrc_manager.pprint_next_version()
+
+    def _command_search_all(self):
+        self._spksrc_manager.check_update_packages()
+        self._spksrc_manager.pprint_new_versions()
 
     def _command_build(self):
         pass
