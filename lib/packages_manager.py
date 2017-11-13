@@ -179,6 +179,7 @@ class PackagesManager(object):
     def pprint_next_version(self):
         """ Print the next version to update using the parameters (allow_major_release, ...)
         """
+        print("{:<30} {:<10} {:<30} {:<30}".format("Package", "New ?", "Current version", "Next version"))
         for package in self._packages_requested:
             next_version = self.get_next_version(package)
             new_version_state = "NO"
