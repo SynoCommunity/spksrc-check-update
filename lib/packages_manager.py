@@ -20,10 +20,13 @@ class PackagesManager(object):
     def __init__(self, packages_requested):
         self._packages_requested = packages_requested
         self._packages = {}
-        self._packages_build = []
+        self._packages_spk = {}
+
         self._cache = Cache(duration=Config.get("cache_duration_packages_manager"))
 
         self.generate_packages_list()
+        self.generate_packages_spk_list()
+
         if not self._packages_requested:
             self._packages_requested = list(self._packages.keys())
 
@@ -44,8 +47,8 @@ class PackagesManager(object):
         """
         return os.path.join(Config.get('spksrc_git_dir'), package, 'Makefile')
 
-    def generate_package_informations(self, package):
-        if not package in self._packages:
+    def generate_package_informations(self, packages, package):
+        if not package in packages:
             makefile_path = self.get_makefile_path(package)
 
             if not os.path.exists(makefile_path):
@@ -57,7 +60,7 @@ class PackagesManager(object):
             search_update.set_parser(parser)
 
             informations = search_update.get_informations()
-            self._packages[package] = {
+            packages[package] = {
                 'makefile_path': makefile_path,
                 'parser': parser,
                 'search_update': search_update,
@@ -66,8 +69,11 @@ class PackagesManager(object):
             }
 
             for dep in informations['all_depends']:
-                self.generate_package_informations(dep)
-                self._packages[dep]['parents'].append(package)
+                self.generate_package_informations(packages, dep)
+                if dep in self._packages and dep not in self._packages[dep]['parents']:
+                    self._packages[dep]['parents'].append(package)
+                if dep in self._packages_spk and dep not in self._packages_spk[dep]['parents']:
+                    self._packages_spk[dep]['parents'].append(package)
 
     def generate_packages_list(self):
         """ XXX
@@ -76,13 +82,29 @@ class PackagesManager(object):
         self._packages = self._cache.load(cache_filename)
 
         if not self._packages:
-            packages = self._find_packages(Config.get('spksrc_git_dir') + 'cross') + self._find_packages(Config.get('spksrc_git_dir') + 'native') + self._find_packages(Config.get('spksrc_git_dir') + 'spk')
+            packages = self._find_packages(Config.get('spksrc_git_dir') + 'cross') + self._find_packages(Config.get('spksrc_git_dir') + 'native')
 
             self._packages = {}
             for package in packages:
-                self.generate_package_informations(package)
+                self.generate_package_informations(self._packages, package)
 
             self._cache.save(cache_filename, self._packages)
+
+
+    def generate_packages_spk_list(self):
+        """ XXX
+        """
+        cache_filename = 'packages_spk.pkl'
+        self._packages_spk = self._cache.load(cache_filename)
+
+        if not self._packages_spk:
+            packages = self._find_packages(Config.get('spksrc_git_dir') + 'spk')
+
+            self._packages_spk = {}
+            for package in packages:
+                self.generate_package_informations(self._packages_spk, package)
+
+            self._cache.save(cache_filename, self._packages_spk)
 
     def package_search_update(self, package):
 
@@ -124,14 +146,25 @@ class PackagesManager(object):
         """ Print all dependencies
         """
         print('  ' * depth + " - " + package)
-        for deps in self._packages[package]['informations']['all_depends']:
+        depends = []
+        if package in self._packages:
+            depends += self._packages[package]['informations']['all_depends']
+        if package in  self._packages_spk:
+            depends += self._packages_spk[package]['informations']['all_depends']
+
+        for deps in set(depends):
             self.pprint_deps(deps, depth + 1)
 
     def pprint_parent_deps(self, package, depth=0):
         """ Print all parent dependencies
         """
         print('  ' * depth + " - " + package)
-        for deps in self._packages[package]['parents']:
+        parents = []
+        if package in self._packages:
+            parents += self._packages[package]['parents']
+        if package in  self._packages_spk:
+            parents += self._packages_spk[package]['parents']
+        for deps in set(parents):
             self.pprint_parent_deps(deps, depth + 1)
 
         # packages = self.check_update_packages()

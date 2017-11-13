@@ -12,6 +12,7 @@ from .packages_manager import PackagesManager
 
 _LOGGER = logging.getLogger(__name__)
 
+logging_format = "[%(levelname)s][%(filename)s:%(lineno)s:%(funcName)s()] %(message)s"
 
 class Main(object):
 
@@ -206,7 +207,7 @@ Examples:
 
         args = self.read_args()
 
-        logging.basicConfig(level=Config.get('debug_level'))
+        logging.basicConfig(format=logging_format,level=Config.get('debug_level'))
 
         command = 'search'
         if args:
@@ -232,8 +233,6 @@ Examples:
         self._versions = func()
 
 def main():
-    logging_format = "[%(levelname)s][%(filename)s:%(lineno)s:%(funcName)s()] %(message)s"
-    logging.basicConfig(format=logging_format,level=logging.DEBUG)
     app = Main()
     ret = app.main()
     sys.exit(ret)

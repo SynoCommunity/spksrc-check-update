@@ -45,7 +45,7 @@ class PackageSearchUpdate(object):
         '7z'
     ]
     regex_extensions_replace_from = "|".join([re.escape(re.escape("." + e)) for e in extensions_to_download])
-    regex_extensions_replace_to = "|".join([re.escape("." + e) for e in extensions_to_download])
+    regex_extensions_replace_to = "|".join([re.escape(e) for e in extensions_to_download])
 
     def __init__(self, package, path):
         self._package = package
@@ -809,8 +809,9 @@ class PackageSearchUpdate(object):
         """ Search for all new versions
         """
         cache_filename = 'versions.pkl'
-        # if self._cache.check(cache_filename):
-            # return self._cache.load(cache_filename)
+        if self._cache.check(cache_filename):
+            self._versions = self._cache.load(cache_filename)
+            return self._versions
 
         method = self.get_method()
         func_name = '_search_updates_' + method
