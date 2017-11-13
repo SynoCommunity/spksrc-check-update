@@ -31,6 +31,8 @@ class PackagesManager(object):
         if not self._packages_requested:
             self._packages_requested = list(self._packages.keys())
 
+        self._packages_requested.sort()
+
     def _find_packages(self, path):
         """ Find all packages in a directory and return package name
         """
@@ -145,6 +147,7 @@ class PackagesManager(object):
 
     def get_next_version(self, package):
         """ Get the next version to update using the parameters (allow_major_release, ...) """
+
         if package not in self._packages:
             return None
 
@@ -153,9 +156,8 @@ class PackagesManager(object):
 
         current_version = self._packages[package]['informations']['version']
 
-        result = None
+        result = {'version': current_version}
         if self._packages[package]['informations']['method'] == 'common':
-            result = None
             for _, new in self._packages[package]['informations']['versions'].items():
                 if self.check_version_isvalid(current_version, new):
                     result = new
