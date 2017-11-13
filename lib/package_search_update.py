@@ -54,7 +54,7 @@ class PackageSearchUpdate(object):
         self._cache = Cache(dir=self._cache_dir, duration=Config.get("cache_duration_search_update_download"))
         self._urls_downloaded = {}
         self._parser = None
-        self._versions = None
+        self._versions = {}
         self._current_version = None
 
         _LOGGER.debug("path: %s", path)
@@ -815,14 +815,14 @@ class PackageSearchUpdate(object):
         method = self.get_method()
         func_name = '_search_updates_' + method
 
-        self._versions = None
+        self._versions = {}
         try:
             func = getattr(self, func_name)
         except AttributeError as e:
             _LOGGER.warning("Method '%s' was not found or during call: %s", method, e)
-            return None
+            return self._versions
 
-        self._versions = func()
+        self._versions = func() or {}
 
         self._cache.save(cache_filename, self._versions)
 
