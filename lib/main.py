@@ -129,11 +129,11 @@ Examples:
             elif opt in ("-w", "--work-dir"):
                 Config.set('work_dir', arg.rstrip(os.path.sep))
             elif opt in ("-m", "--allow-major-release"):
-                Config.set('allow_major_release', True)
+                Config.set('build_major_release_allowed', True)
             elif opt in ("-a", "--allow-prerelease"):
-                Config.set('allow_prerelease', True)
+                Config.set('build_prerelease_allowed', True)
             elif opt in ("-u", "--update-deps"):
-                Config.set('update_deps', True)
+                Config.set('build_update_deps', True)
             elif opt in ("-j", "--jobs"):
                 Config.set('nb_jobs', max(int(arg), 1))
             elif opt in ("-o", "--option"):
