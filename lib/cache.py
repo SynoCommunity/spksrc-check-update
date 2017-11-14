@@ -52,3 +52,10 @@ class Cache:
                 return pickle.load(f)
 
         return None
+
+    def clear(self, filename):
+        """ Delete file
+        """
+        path = os.path.join(self._dir, filename)
+        if os.path.exists(path):
+            os.remove(path)
