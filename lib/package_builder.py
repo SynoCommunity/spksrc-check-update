@@ -20,11 +20,6 @@ class PackageBuilder(object):
         self._spksrc_dir = Config.get('spksrc_git_dir')
         self._packages_build = []
 
-    def log(self, message):
-        """ Print a message with a prefix
-        """
-        _LOGGER.info("Builder: %s", message)
-
     def set_spksrc_dir(self, spksrc_dir):
         """ Set spksrc directory
         """
@@ -36,16 +31,16 @@ class PackageBuilder(object):
 
         # Clone repo if not exists
         if not os.path.exists(self._spksrc_dir):
-            self.log("Clone repository: " + Config.get('spksrc_git_uri'))
+            _LOGGER.info("Clone repository: %s", Config.get('spksrc_git_uri'))
             try:
                 git.Repo.clone_from(
                     Config.get('spksrc_git_uri'), self._spksrc_dir)
             except git.GitCommandError as exception:
-                self.log("Error to clone git")
+                _LOGGER.info("Error to clone git")
                 return
 
         # Fetch and pull
-        self.log("Fetch and pull git")
+        _LOGGER.info("Fetch and pull git")
         repo = git.Repo(self._spksrc_dir)
 
         # Fetch and pull all remotes
@@ -54,11 +49,11 @@ class PackageBuilder(object):
             remote.pull()
 
         # Reset hard
-        self.log("Reset hard")
+        _LOGGER.info("Reset hard")
         repo.head.reset(index=True, working_tree=True)
 
         # Checkout master
-        self.log("Checkout master")
+        _LOGGER.info("Checkout master")
         repo.refs.master.checkout()
 
     def build(self):
@@ -79,9 +74,9 @@ class PackageBuilder(object):
 
         for package in self._packages:
             if self._packages[package]['version']:
-                self.log(package + " " + self._packages[package]['version'])
+                _LOGGER.info("%s %s", package, self._packages[package]['version'])
             else:
-                self.log(package)
+                _LOGGER.info(package)
             pprint.pprint(self._packages[package])
             #version = self.get_new_version(package)
             # if version:

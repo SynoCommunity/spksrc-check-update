@@ -57,12 +57,7 @@ class PackageSearchUpdate(object):
         self._versions = {}
         self._current_version = None
 
-        _LOGGER.debug("path: %s", path)
-
-    def log(self, message):
-        """ Print a message with a prefix
-        """
-        _LOGGER.info("[Package:%s]: %s", self._package, message)
+        _LOGGER.debug("[Package:%s] path: %s", self._package, path)
 
     def set_parser(self, parser):
         """ Set parser instance
@@ -148,7 +143,7 @@ class PackageSearchUpdate(object):
         # Get current Hash of package
         git_hash = self.get_version()
 
-        _LOGGER.info("Current git hash: %s", git_hash)
+        _LOGGER.info("[Package:%s]: Current git hash: %s", self._package, git_hash)
 
         # State file to determine when the repository is cloned
         git_is_cloned = os.path.join(self._cache_dir, '.git_clone')
@@ -158,19 +153,19 @@ class PackageSearchUpdate(object):
                 shutil.rmtree(git_path)
 
             # Clone repository
-            self.log("Clone repository: " + url)
+            _LOGGER.info("[Package:%s]: Clone repository: %s", self._package, url)
             try:
                 git.Repo.clone_from(url, git_path)
             except git.GitCommandError as exception:
-                self.log("Error to clone git")
+                _LOGGER.info("[Package:%s]: Error to clone git", self._package)
                 return
 
             # Touch the state file
             open(git_is_cloned, 'w').close()
-            self.log("Repository cloned")
+            _LOGGER.info("[Package:%s]: Repository cloned", self._package)
 
         # Fetch and pull
-        self.log("Fetch and pull git")
+        _LOGGER.info("[Package:%s]: Fetch and pull git", self._package)
         repo = git.Repo(git_path)
         for remote in repo.remotes:
             remote.fetch()
@@ -181,7 +176,7 @@ class PackageSearchUpdate(object):
         tags = repo.tags
         if len(tags) > 0:
             # Has tag: List new tags
-            self.log("Has tags: Get new versions from tags")
+            _LOGGER.info("[Package:%s]: Has tags: Get new versions from tags", self._package)
             tags.sort(key=lambda t: t.commit.committed_datetime)
             for c in repo.iter_commits(git_hash + '..HEAD'):
                 tag = next((tag for tag in repo.tags if tag.commit == c), None)
@@ -189,7 +184,7 @@ class PackageSearchUpdate(object):
                     new_versions[str(tag)] = {'hash': str(tag)}
         else:
             # No tags: list new commits
-            self.log("No tags: Get new versions from commits")
+            _LOGGER.info("[Package:%s]: No tags: Get new versions from commits", self._package)
             for c in repo.iter_commits(git_hash + '..HEAD'):
                 new_versions[str(c)] = {'hash': str(c)}
 
@@ -209,7 +204,7 @@ class PackageSearchUpdate(object):
         if svn_rev != 'HEAD':
             svn_rev_next = int(svn_rev) + 1
 
-        self.log("Current svn revision: " + svn_rev)
+        _LOGGER.info("[Package:%s]: Current svn revision: %s", self._package, svn_rev)
 
         # State file to determine when the repository is checkout
         svn_is_checkout = os.path.join(self._cache_dir, '.svn_checkout')
@@ -219,28 +214,28 @@ class PackageSearchUpdate(object):
                 shutil.rmtree(svn_path)
 
             # Checkout repository
-            self.log("Checkout repository: " + url)
+            _LOGGER.info("[Package:%s]: Checkout repository: %s", self._package, url)
             try:
                 repo = svn.remote.RemoteClient(url)
                 repo.checkout(svn_path)
             except:
-                self.log("Error to checkout svn")
+                _LOGGER.info("[Package:%s]: Error to checkout svn", self._package)
                 return
 
             # Touch the state file
             open(svn_is_checkout, 'w').close()
-            self.log("Repository checkout")
+            _LOGGER.info("[Package:%s]: Repository checkout", self._package)
 
         repo = svn.local.LocalClient(svn_path)
 
         # Update repository
-        self.log("Update svn")
+        _LOGGER.info("[Package:%s]: Update svn", self._package)
         repo.update()
 
         new_versions = collections.OrderedDict()
 
         # Get new revision in /tags repository
-        self.log("Get new revisions in /tags directory")
+        _LOGGER.info("[Package:%s]: Get new revisions in /tags directory", self._package)
         tags_rev = repo.log_default(
             None, None, None, '^/tags', None, svn_rev_next, None)
         for rev in tags_rev:
@@ -276,7 +271,7 @@ class PackageSearchUpdate(object):
                         file += '/'
                     hrefs.append({'href': file, 'href_p': urlparse(file), 'content': ''})
             except:
-                self.log('Error to connect on FTP')
+                _LOGGER.info('Error to connect on FTP')
                 return None
         else:
             # Get content page on HTTP
@@ -287,7 +282,7 @@ class PackageSearchUpdate(object):
                 req = requests.get(url, allow_redirects=True, headers=headers)
             except:
                 # Catch server not found
-                self.log('Error to download page: ' + url)
+                _LOGGER.info('Error to download page: ' + url)
                 return None
 
             # If code 200
@@ -349,7 +344,7 @@ class PackageSearchUpdate(object):
                             hrefs.append({'href': href, 'href_p': urlparse(href), 'content': str(item.next).strip()})
             else:
                 # In case of code different to 200
-                self.log('Error to download page: ' + url)
+                _LOGGER.info('Error to download page: ' + url)
                 return None
 
         return {'type': url_p.scheme, 'url': url, 'url_p': url_p, 'hrefs': hrefs, 'history': history, 'content': content}
@@ -543,11 +538,11 @@ class PackageSearchUpdate(object):
 
         # Avoid to download page more than one time
         if url_to_request in self._urls_downloaded:
-            self.log("Url page already download: " + url_to_request)
+            _LOGGER.info("[Package:%s]: Url page already download: %s", self._package, url_to_request)
             return None
 
         # Download page content
-        self.log("Download url page: " + url_to_request)
+        _LOGGER.info("[Package:%s]: Download url page: %s", self._package, url_to_request)
         content_request = self._download_content(url_to_request, url)
 
         # In case of empty result, return None
@@ -561,7 +556,7 @@ class PackageSearchUpdate(object):
         # Ex: Google Code redirect to github
         req_url_p = urlparse(content_request['url'])
         if len(content_request['history']) > 0 and (content_request['url_p'].netloc != req_url_p.netloc or content_request['url_p'].path != req_url_p.path):
-            self.log("Check redirection to: " + content_request['url'])
+            _LOGGER.info("[Package:%s]: Check redirection to: %s", self._package, content_request['url'])
             depth = 0
             while True:
                 text = self._get_url_data(content_request['url'], depth)
@@ -634,10 +629,10 @@ class PackageSearchUpdate(object):
         self._version = self.get_version()
 
         if not self._version:
-            self.log('Error: No version found in the package !')
+            _LOGGER.info('Error: No version found in the package !')
             return None
 
-        self.log("Current version: " + self._version)
+        _LOGGER.info("[Package:%s]: Current version: %s", self._package, self._version)
 
         self._version_p = parse_version(self._version)
 
@@ -658,7 +653,7 @@ class PackageSearchUpdate(object):
             # Check home page
             home_page = self.get_parser().get_var_values('HOMEPAGE')
             if home_page:
-                self.log("Search in home page")
+                _LOGGER.info("[Package:%s]: Search in home page", self._package)
                 depth = 0
                 while True:
                     check = self._get_url_data(home_page[0], depth)
@@ -669,7 +664,7 @@ class PackageSearchUpdate(object):
             # Check download page
             download_page = self.get_parser().get_var_values('DOWNLOAD_PAGE')
             if download_page:
-                self.log("Search in download page")
+                _LOGGER.info("[Package:%s]: Search in download page", self._package)
                 depth = 0
                 while True:
                     check = self._get_url_data(download_page[0], depth)
@@ -681,15 +676,15 @@ class PackageSearchUpdate(object):
             #download_urls = self._search_download_urls()
             download_urls = []
             if len(download_urls) > 0:
-                self.log("Found download link in page:")
+                _LOGGER.info("[Package:%s]: Found download link in page:", self._package)
                 for url in download_urls:
-                    self.log("Download link: " + url)
+                    _LOGGER.info("[Package:%s]: Download link: %s", self._package, url)
                     self._get_url_data(url)
 
             # Check for version URL in the page
             version_urls = self._search_version_urls()
             if len(version_urls) > 0:
-                self.log("Found version link in page:")
+                _LOGGER.info("[Package:%s]: Found version link in page:", self._package)
                 for url in version_urls:
                     self._get_url_data(url, 0, False)
 
@@ -697,7 +692,7 @@ class PackageSearchUpdate(object):
         else:
             self._urls_downloaded = self._cache.load(cache_filename)
 
-        self.log("Check for filename in pages")
+        _LOGGER.info("[Package:%s]: Check for filename in pages", self._package)
 
         # Get regex for filename
         regex_filename = self._generate_regex_filename()
