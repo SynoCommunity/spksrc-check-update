@@ -114,12 +114,12 @@ class Config:
     regex_config_replace = re.compile('%\w+%')
 
     @staticmethod
-    def _parse_value(getter, property_name, value):
-        if type(value) is str:
+    def _parse_value(getter, value):
+        if isinstance(value, str):
             for match in Config.regex_config_replace.findall(value):
                 replace_value = getter(match[1:-1])
                 if replace_value:
-                    if type(replace_value) is not str and value == match:
+                    if not isinstance(replace_value, str) and value == match:
                         value = replace_value
                         break
                     else:
@@ -142,8 +142,8 @@ class Config:
         if not prop:
             return default
 
-        value = prop.get('value') or prop.get('default')
-        value = Config._parse_value(Config.get, property_name, value)
+        value = prop.get('default')
+        value = Config._parse_value(Config.get_default, value)
 
         return value
 
@@ -158,8 +158,10 @@ class Config:
         if not prop:
             return default
 
-        value = prop.get('value') or prop.get('default')
-        value = Config._parse_value(Config.get, property_name, value)
+        value = prop.get('value')
+        if value is None:
+            value = prop.get('default')
+        value = Config._parse_value(Config.get, value)
 
         value = Config.convert(prop, value)
         Config.configs_cached[property_name] = value
@@ -186,8 +188,10 @@ class Config:
         prop_var = '%' + property_name + '%'
         for (key, prop) in configs.items():
             if key in Config.configs_cached:
-                prop_value = prop.get('value') or prop.get('default')
-                if prop_var in prop_value:
+                prop_value = prop.get('value')
+                if prop_value is None:
+                    prop_value = prop.get('default')
+                if isinstance(prop_value, str) and prop_var in prop_value:
                     Config.clear_cache(key)
 
     @staticmethod

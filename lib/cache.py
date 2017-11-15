@@ -31,11 +31,11 @@ class Cache:
     def check(self, filename, duration=None):
         """ Check cache from a file
         """
+        path = os.path.join(self._dir, filename)
         if not Config.get('cache_enabled'):
             return False
 
         c_duration = duration or self._duration
-        path = os.path.join(self._dir, filename)
         if os.path.exists(path):
             mtime = os.path.getmtime(path)
             if (mtime + c_duration) > time.time():
@@ -46,6 +46,10 @@ class Cache:
     def load(self, filename, duration=None):
         """ Load cache from a file
         """
+        path = os.path.join(self._dir, filename)
+        if not Config.get('cache_enabled'):
+            return None
+
         path = os.path.join(self._dir, filename)
         if not duration and os.path.exists(path) or duration and self.check(filename, duration):
             with open(path, 'rb') as f:

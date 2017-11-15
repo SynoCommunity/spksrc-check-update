@@ -57,7 +57,7 @@ Parameters:
 
   - Cache:
     -c --disable-cache                      Disable cache
-    -d --cache-duration=<duration>          Cache duration in seconds (Default: 3 days)
+    -e --cache-duration=<duration>          Cache duration in seconds (Default: 3 days)
 
   - Build:
     -m --allow-major-release                Allow to update to next major version (Default: False)
@@ -117,10 +117,8 @@ Examples:
             elif opt in ("-c", "--disable-cache"):
                 Config.set('cache_enabled', False)
             elif opt in ("-r", "--root"):
-                Config.set('spksrc_git_dir', arg.rstrip(
-                    os.path.sep) + os.path.sep)
+                Config.set('spksrc_git_dir', arg.rstrip(os.path.sep) + os.path.sep)
             elif opt in ("-p", "--packages"):
-                # Config.set('packages', arg.strip(os.path.sep).split(','))
                 self._packages = arg.strip(os.path.sep).split(',')
             elif opt in ("-d", "--debug"):
                 Config.set('debug_level', arg)
