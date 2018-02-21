@@ -1,4 +1,3 @@
-
 root = true
 
 [*]
@@ -9,16 +8,9 @@ trim_trailing_whitespace = true
 end_of_line = lf
 charset = utf-8
 
-# Docstrings and comments use max_line_length = 79
 [*.py]
-max_line_length = 119
-
-# The JSON files contain newlines inconsistently
-[*.json]
-indent_size = 2
-insert_final_newline = ignore
+max_line_length = 120
 
 # Makefiles always use tabs for indentation
 [Makefile]
 indent_style = tab
-
