@@ -174,7 +174,6 @@ class PackagesManager(object):
         return self._packages[package]
 
 
-
     def pprint_next_version(self):
         """ Print the next version to update using the parameters (allow_major_release, ...)
         """

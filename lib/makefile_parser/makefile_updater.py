@@ -25,7 +25,7 @@ class MakefileUpdater(MakefileParser):
         _LOGGER.debug("parse_file: file: %s", file)
         file = open(file, "r")
         for line in file:
-            self._original_content.append(line.rstrip('\n'))
+            self._original_content.append(line)
             self._parse_line(line)
         file.close()
         self._updated_content = self._original_content
@@ -34,7 +34,9 @@ class MakefileUpdater(MakefileParser):
     def parse_text(self, text):
         """ Parse a Makefile content
         """
-        self._original_content = text.split('\n')
+        splitted = text.split('\n')
+        self._original_content = ["{}\n".format(i) for i in splitted[:-1]]
+        self._original_content.append(splitted[-1])
         self._updated_content = self._original_content
         super().parse_text(text)
 
@@ -83,7 +85,7 @@ class MakefileUpdater(MakefileParser):
                 if result[0]['var'] == var:
                     if not idx or i_var_values in idx:
                         parser_updater = self._get_parser_updater(lambda toks: self._vars[var][i_var_values])
-                        self._updated_content[i] = parser_updater.transformString(line)
+                        self._updated_content[i] = parser_updater.transformString(line) + '\n'
                     i_var_values += 1
 
         return True
@@ -91,7 +93,7 @@ class MakefileUpdater(MakefileParser):
     def write_output(self):
         """ Return content with update fields
         """
-        return '\n'.join(self._updated_content)
+        return ''.join(self._updated_content)
 
     def write_file(self, path):
         """ Write content with update fields in a file

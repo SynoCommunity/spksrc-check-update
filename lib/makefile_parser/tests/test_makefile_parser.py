@@ -21,13 +21,13 @@ VALUE=56_$(TEST)_11"""
         self.assertEqual(tmp_parser.get_var_values('TEST'), None)
         self.assertEqual(tmp_parser.get_var_values('VALUE'), None)
 
-    def tets_is_parsed(self):
+    def test_is_parsed(self):
         text = """TEST=10
-        VALUE=56_$(TEST)_11"""
+VALUE=56_$(TEST)_11"""
         tmp_parser = MakefileParser()
-        self.assertEqual(self.parser.is_parsed(), False)
+        self.assertEqual(tmp_parser.is_parsed(), False)
         tmp_parser.parse_text(text)
-        self.assertEqual(self.parser.is_parsed(), True)
+        self.assertEqual(tmp_parser.is_parsed(), True)
 
     def test_default_value(self):
         self.assertEqual(self.parser.get_var_values('UNKNOW_VAR', ['DEFAULT_VALUE']), ['DEFAULT_VALUE'])
