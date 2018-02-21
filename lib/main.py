@@ -35,7 +35,7 @@ class Main(object):
 Script to gather search update for spksrc package in cross/ and native/.
 
 Usage:
-  main.py [options] [action]
+  spksrc-updater.py [options] [action]
 
 Action:
   - search                                  Search for new updates
@@ -70,19 +70,19 @@ Available options:
 Examples:
 
   - Search news version for ALL packages:
-        python main.py -r ../spksrc search
+        python spksrc-updater.py -r ../spksrc search
 
   - Launch build for the new release of ffmpeg:
-        python main.py -r ../spksrc -p cross/ffmpeg build
+        python spksrc-updater.py -r ../spksrc -p cross/ffmpeg build
 
   - Launch build for the new release of zlib and ffmpeg:
-        python main.py -r ../spksrc -p cross/zlib,cross/ffmpeg build
+        python spksrc-updater.py -r ../spksrc -p cross/zlib,cross/ffmpeg build
 
   - Launch build for the new major release of ffmpeg:
-        python main.py -r ../spksrc -p cross/ffmpeg --allow-major-release build
+        python spksrc-updater.py -r ../spksrc -p cross/ffmpeg --allow-major-release build
 
   - Launch build for the new release of ffmpeg and all its dependencies:
-        python main.py -r ../spksrc -p cross/ffmpeg --allow-prerelease build
+        python spksrc-updater.py -r ../spksrc -p cross/ffmpeg --allow-prerelease build
 
 """.format(str_options))
 

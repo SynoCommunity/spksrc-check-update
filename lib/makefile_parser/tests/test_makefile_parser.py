@@ -44,11 +44,11 @@ class TestMakefileParser(unittest.TestCase):
 
     def test_call_value(self):
         self.assertEqual(self.parser.get_var_values(
-            'PKG_DIR'), ['boost_1_63_0'])
+            'TEST_CALL_VALUE'), ['AA 10'])
 
     def test_call_subst(self):
         self.assertEqual(self.parser.get_var_values(
-            'TEST_CALL_VALUE'), ['AA 10'])
+            'PKG_DIR'), ['boost_1_63_0'])
 
     def test_assigns(self):
         self.assertEqual(self.parser.get_var_values('ASSIGN1'), ['1'])
