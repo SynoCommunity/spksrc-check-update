@@ -16,6 +16,7 @@ class MakefileParser(object):
         self._vars_not_evaluate = {}
         self._vars = {}
         self._is_parsed = False
+        self._original_content = ""
 
     def _get_parser(self):
         """ Initialize the pyparsing parser for Makefile
@@ -146,6 +147,7 @@ class MakefileParser(object):
         _LOGGER.debug("parse_file: file: %s", file)
         file = open(file, "r")
         for line in file:
+            self._original_content += line + "\n"
             self._parse_line(line)
         file.close()
         self._is_parsed = True
@@ -154,6 +156,7 @@ class MakefileParser(object):
         """ Parse a Makefile content
         """
         _LOGGER.debug("parse_text: text: %s", text)
+        self._original_content = text
         lines = text.split('\n')
         for line in lines:
             self._parse_line(line)

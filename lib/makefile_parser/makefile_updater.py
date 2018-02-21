@@ -5,18 +5,17 @@ import json
 import copy
 import logging
 import pyparsing as pp
+import MakefileParser
 
 _LOGGER = logging.getLogger(__name__)
 
 
-class MakefileUpdater(object):
+class MakefileUpdater(MakefileParser):
 
-    def __init__(self, makefile, method, version):
-        """ Initialize the Makefile parser and private variables
+    def __init__(self):
+        """ Initialize the Makefile parser
         """
-        self._parser = self._get_parser()
-        self._vars_not_evaluate = {}
-        self._vars = {}
+        super().__init__()
 
     def _get_parser(self):
         """ Initialize the pyparsing parser for Makefile
