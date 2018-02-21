@@ -50,7 +50,7 @@ Parameters:
     -h --help                               Show this screen.
     -v --version                            Print version
     -d --debug=<level>                      Debug level: DEBUG, INFO, WARNING, ERROR, CRITICAL
-    -w --work-dir=<directory>               Work directory (Default: work)
+    -w --work-dir=<directory>               Work directory (Default: {})
     -r --root=<root>                        Root directory of spksrc
     -p --packages=<package,package>         Packages to check for update
     -j --jobs                               Number of jobs (Default: max CPU core)
@@ -58,7 +58,7 @@ Parameters:
 
   - Cache:
     -c --disable-cache                      Disable cache
-    -e --cache-duration=<duration>          Cache duration in seconds (Default: 3 days)
+    -e --cache-duration=<duration>          Cache duration in seconds (Default: {})
 
   - Build:
     -m --allow-major-release                Allow to update to next major version (Default: False)
@@ -85,7 +85,7 @@ Examples:
   - Launch build for the new release of ffmpeg and all its dependencies:
         python spksrc-updater.py -r ../spksrc -p cross/ffmpeg --allow-prerelease build
 
-""".format(str_options))
+""".format(Config.get_default('work_dir'), Config.get_default('cache_duration'), str_options))
 
     def read_args(self):
         try:
