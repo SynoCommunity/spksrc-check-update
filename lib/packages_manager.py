@@ -139,7 +139,7 @@ class PackagesManager(object):
         if Config.get('build_major_release_allowed'):
             return new_p > current_p
 
-        major_version = Tools.get_next_major_version(current_p)
+        major_version = Tools.get_next_major_version_prerelease(current_p)
         if major_version and new_p >= major_version:
             return False
 

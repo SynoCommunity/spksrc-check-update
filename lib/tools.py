@@ -16,7 +16,7 @@ class Tools:
     def get_next_major_version(version):
         """
         Given a parsed version from pkg_resources.parse_version, returns a new
-        version string with the next minor version.
+        version string with the major minor version.
 
         Examples
         ========
@@ -50,3 +50,16 @@ class Tools:
             return None
 
         return parse_version('{0}.{1}.{2}'.format(major + 1, 0, 0))
+
+    @staticmethod
+    def get_next_major_version_prerelease(version):
+        """
+        Given a parsed version from pkg_resources.parse_version, returns a new
+        version string with the next major version included '-dev0' to ignore new pre-release.
+
+        Examples
+        ========
+        >>> _next_major_version(pkg_resources.parse_version('1.2.3'))
+        '2.0.0-r0'
+        """
+        return parse_version('{0}-dev0'.format(Tools.get_next_major_version(version)))
