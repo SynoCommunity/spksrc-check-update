@@ -22,6 +22,14 @@ class TestMakefileParser(unittest.TestCase):
         tmp_parser.get_var_values('TEST', None)
         tmp_parser.get_var_values('VALUE', None)
 
+    def tets_is_parsed(self):
+        text = """TEST=10
+        VALUE=56_$(TEST)_11"""
+        tmp_parser = MakefileParser()
+        self.assertEqual(self.parser.is_parsed(), False)
+        tmp_parser.parse_text(text)
+        self.assertEqual(self.parser.is_parsed(), True)
+
     def test_value_simple_var(self):
         self.assertEqual(self.parser.get_var_values('PKG_NAME'), ['boost'])
         self.assertEqual(self.parser.get_var_values('PKG_VERS'), ['1.63.0'])
@@ -50,6 +58,18 @@ class TestMakefileParser(unittest.TestCase):
         self.assertEqual(self.parser.get_var_values(
             'PKG_DIR'), ['boost_1_63_0'])
 
+    def test_call_empty(self):
+        self.assertEqual(self.parser.get_var_values(
+            'EMPTY_CALL'), ['11  33'])
+
+    def test_call_empty2(self):
+        self.assertEqual(self.parser.get_var_values(
+            'EMPTY_CALL2'), ['11  33'])
+
+    def test_call_unkonw(self):
+        self.assertEqual(self.parser.get_var_values(
+            'UNKNOW_CALL'), ['11  33'])
+
     def test_assigns(self):
         self.assertEqual(self.parser.get_var_values('ASSIGN1'), ['1'])
         self.assertEqual(self.parser.get_var_values('ASSIGN2'), ['2'])
@@ -67,9 +87,25 @@ class TestMakefileParser(unittest.TestCase):
         self.assertEqual(self.parser.get_var_values(
             'PKG_DIST_NAME'), ['boost_1_71_0.tar.bz2'])
 
+    def test_reevaluate_var_with_value_command(self):
+        self.parser.set_var_values('PKG_VERS', ['1.71.0'])
+        self.parser.evaluate_var('PKG_DIST_SITE_VALUE')
+        self.assertEqual(self.parser.get_var_values(
+            'PKG_DIST_SITE_VALUE'), ['http://sourceforge.net/projects/boost/files/boost/1.71.0'])
+
     def test_value_with_comment(self):
         self.assertEqual(self.parser.get_var_values(
             'VALUE_WITH_COMMENT'), ['10 11 '])
+
+    def test_is_containing_call(self):
+        self.assertEqual(self.parser.is_containing_call(
+            'UNKNOW_VAR'), None)
+        self.assertEqual(self.parser.is_containing_call(
+            'VALUE'), False)
+        self.assertEqual(self.parser.is_containing_call(
+            'TEST_CALL_VALUE'), True)
+        self.assertEqual(self.parser.is_containing_call(
+            'VALUE_WITH_COMMENT'), False)
 
 
 if __name__ == '__main__':
