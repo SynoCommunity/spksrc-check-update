@@ -282,7 +282,7 @@ class PackageSearchUpdate(object):
                 req = requests.get(url, allow_redirects=True, headers=headers)
             except:
                 # Catch server not found
-                _LOGGER.info('Error to download page: ' + url)
+                _LOGGER.info("[Package:%s]: Error to download page: %s", self._package, url)
                 return None
 
             # If code 200
@@ -344,7 +344,7 @@ class PackageSearchUpdate(object):
                             hrefs.append({'href': href, 'href_p': urlparse(href), 'content': str(item.next).strip()})
             else:
                 # In case of code different to 200
-                _LOGGER.info('Error to download page: ' + url)
+                _LOGGER.info("[Package:%s]: Error to download page: %s", self._package, url)
                 return None
 
         return {'type': url_p.scheme, 'url': url, 'url_p': url_p, 'hrefs': hrefs, 'history': history, 'content': content}
