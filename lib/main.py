@@ -183,6 +183,8 @@ Examples:
         self._spksrc_manager.pprint_new_versions()
 
     def _command_build(self):
+        self._spksrc_manager.check_update_packages()
+        self._spksrc_manager.update_packages_version()
         pass
 
     def _command_print_deps(self):

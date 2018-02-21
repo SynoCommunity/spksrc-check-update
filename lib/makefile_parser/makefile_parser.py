@@ -28,7 +28,7 @@ class MakefileParser(object):
         nested_brackets = pp.nestedExpr('${', '}', content=enclosed)
         enclosed <<= (nested_parents | nested_brackets | pp.CharsNotIn('$(){}#\n')).leaveWhitespace()
 
-        return pp.lineStart + var_name + assign + pp.ZeroOrMore(pp.White()) + pp.ZeroOrMore(enclosed)('value') + pp.Optional(pp.pythonStyleComment)('comment')
+        return pp.lineStart + var_name + pp.ZeroOrMore(pp.White()) + assign + pp.ZeroOrMore(pp.White()) + pp.ZeroOrMore(enclosed)('value') + pp.Optional(pp.pythonStyleComment)('comment')
 
     def _generate_str_possibility(self, arr):
         str_arr = []
@@ -207,6 +207,18 @@ class MakefileParser(object):
             self._vars[var] = []
             for v in self._vars_not_evaluate[var]:
                 self._vars[var] += self.evaluate_result(v, True)
+
+    def is_containing_call(self, var):
+        """ Check if a var contains a call like $(VALUE) or $(xxx yyy zzz)
+        """
+        if var in self._vars_not_evaluate:
+            for result in self._vars_not_evaluate[var]:
+                for v in result:
+                    if isinstance(v, pp.ParseResults):
+                        return True
+            return False
+
+        return None
 
     def is_parsed(self):
         """ Return if parse_file or parse_text was called
