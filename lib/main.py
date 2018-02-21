@@ -12,7 +12,8 @@ from .packages_manager import PackagesManager
 
 _LOGGER = logging.getLogger(__name__)
 
-logging_format = "[%(levelname)s][%(filename)s:%(lineno)s:%(funcName)s()] %(message)s"
+# logging_format = "[%(levelname)s][%(filename)s:%(lineno)s:%(funcName)s()] %(message)s"
+logging_format = "[%(levelname)s]%(message)s"
 
 class Main(object):
 
