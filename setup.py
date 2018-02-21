@@ -42,8 +42,7 @@ setup(
     package_dir={'spksrc_updater': 'lib'},
     packages=["spksrc_updater"],
     scripts=['spksrc-updater'],
-    author="Guillaume Smaha",
-    author_email="guillaume.smaha@gmail.com",
+    author="Guillaume Smaha & SynoCommunity",
     license='GPLv3',
-    url="https://github.com/GuillaumeSmaha/spksrc-updater"
+    url="https://github.com/SynoCommunity/spksrc-updater"
 )
