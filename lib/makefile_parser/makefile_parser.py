@@ -28,7 +28,7 @@ class MakefileParser(object):
         nested_brackets = pp.nestedExpr('${', '}', content=enclosed)
         enclosed <<= (nested_parents | nested_brackets | pp.CharsNotIn('$(){}#\n')).leaveWhitespace()
 
-        return pp.lineStart + var_name + assign + pp.ZeroOrMore(pp.White()) + pp.ZeroOrMore(enclosed)('value') + pp.Optional(pp.pythonStyleComment)('comment')
+        return pp.lineStart + var_name + pp.ZeroOrMore(pp.White()) + assign + pp.ZeroOrMore(pp.White()) + pp.ZeroOrMore(enclosed)('value') + pp.Optional(pp.pythonStyleComment)('comment')
 
     def _generate_str_possibility(self, arr):
         str_arr = []

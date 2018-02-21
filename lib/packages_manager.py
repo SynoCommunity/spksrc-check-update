@@ -9,7 +9,7 @@ from multiprocessing import Pool
 from .config import Config
 from .cache import Cache
 from .tools import Tools
-from .makefile_parser.makefile_parser import MakefileParser
+from .makefile_parser.makefile_updater import MakefileUpdater
 from .package_search_update import PackageSearchUpdate
 from .package_builder import PackageBuilder
 
@@ -58,7 +58,7 @@ class PackagesManager(object):
                 _LOGGER.warning("Package %s doesn't exist !", package)
                 return
 
-            parser = MakefileParser()
+            parser = MakefileUpdater()
             search_update = PackageSearchUpdate(package, makefile_path)
             search_update.set_parser(parser)
 
@@ -168,7 +168,6 @@ class PackagesManager(object):
         return result
 
 
-
     def get_package(self, package):
         """ Return package informations
         """
@@ -199,8 +198,9 @@ class PackagesManager(object):
             for (version, _) in self._packages[package]['informations']['versions'].items():
                 print(" - {}".format(version))
 
+
     def pprint_deps(self, package, depth=0):
-        """ Print all dependencies
+        """ Print all dependencies for a package
         """
         print('  ' * depth + " - " + package)
         depends = []
@@ -213,7 +213,7 @@ class PackagesManager(object):
             self.pprint_deps(deps, depth + 1)
 
     def pprint_parent_deps(self, package, depth=0):
-        """ Print all parent dependencies
+        """ Print all parent dependencies for a package
         """
         print('  ' * depth + " - " + package)
         parents = []
@@ -223,6 +223,25 @@ class PackagesManager(object):
             parents += self._packages_spk[package]['parents']
         for deps in set(parents):
             self.pprint_parent_deps(deps, depth + 1)
+
+
+    def update_packages_version(self):
+        """ Update makefile and write next version
+        """
+        for package in self._packages_requested:
+            next_version = self.get_next_version(package)
+            if next_version:
+                new_version = next_version['version']
+                if self._packages[package]['informations']['version'] != new_version:
+                    if self._packages[package]['informations']['method'] == 'common':
+                        self._packages[package]['parser'].set_var_values('PKG_VERS', new_version)
+                        self._packages[package]['parser'].update_content('PKG_VERS')
+                        print("Updater: Update {} from {} to {}".format(package, self._packages[package]['informations']['version'], new_version))
+                    self._packages[package]['parser'].write_file(self._packages[package]['makefile_path'])
+
+
+
+
 
         # packages = self.check_update_packages()
 

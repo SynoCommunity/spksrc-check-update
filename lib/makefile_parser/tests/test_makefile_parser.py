@@ -12,15 +12,14 @@ class TestMakefileParser(unittest.TestCase):
 
     def test_parse_text(self):
         text = """TEST=10
-        VALUE=56_$(TEST)_11"""
+VALUE=56_$(TEST)_11"""
         tmp_parser = MakefileParser()
         tmp_parser.parse_text(text)
-        tmp_parser.get_var_values('TEST', ['10'])
-        tmp_parser.get_var_values('VALUE', ['56_10_11'])
-
+        self.assertEqual(tmp_parser.get_var_values('TEST'), ['10'])
+        self.assertEqual(tmp_parser.get_var_values('VALUE'), ['56_10_11'])
         tmp_parser.del_vars_values()
-        tmp_parser.get_var_values('TEST', None)
-        tmp_parser.get_var_values('VALUE', None)
+        self.assertEqual(tmp_parser.get_var_values('TEST'), None)
+        self.assertEqual(tmp_parser.get_var_values('VALUE'), None)
 
     def tets_is_parsed(self):
         text = """TEST=10
@@ -29,6 +28,9 @@ class TestMakefileParser(unittest.TestCase):
         self.assertEqual(self.parser.is_parsed(), False)
         tmp_parser.parse_text(text)
         self.assertEqual(self.parser.is_parsed(), True)
+
+    def test_default_value(self):
+        self.assertEqual(self.parser.get_var_values('UNKNOW_VAR', ['DEFAULT_VALUE']), ['DEFAULT_VALUE'])
 
     def test_value_simple_var(self):
         self.assertEqual(self.parser.get_var_values('PKG_NAME'), ['boost'])
