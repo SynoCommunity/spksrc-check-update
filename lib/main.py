@@ -73,6 +73,9 @@ Examples:
   - Search news version for ALL packages:
         python spksrc-updater.py -r ../spksrc search
 
+  - Search news version for only x265 package:
+        python spksrc-updater.py -r ../spksrc -p cross/x265 search
+
   - Launch build for the new release of ffmpeg:
         python spksrc-updater.py -r ../spksrc -p cross/ffmpeg build
 
