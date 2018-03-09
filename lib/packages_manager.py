@@ -4,6 +4,7 @@ import os
 import logging
 
 from pkg_resources import parse_version
+import git as git
 from multiprocessing import Pool
 
 from .config import Config
@@ -18,20 +19,100 @@ _LOGGER = logging.getLogger(__name__)
 
 class PackagesManager(object):
 
-    def __init__(self, packages_requested):
-        self._packages_requested = packages_requested
+    def __init__(self):
+        """ Initialize the PackagesManager and private vars
+        """
+        self._packages_requested = {}
         self._packages = {}
         self._packages_spk = {}
 
         self._cache = Cache(duration=Config.get("cache_duration_packages_manager"))
 
+    def initialize(self, packages_requested):
+        """ Initialize package requested and get list of packages from spksrc repository
+        """
         self.generate_packages_list()
         self.generate_packages_spk_list()
 
+        self._packages_requested = packages_requested
         if not self._packages_requested:
             self._packages_requested = list(self._packages.keys())
 
         self._packages_requested.sort()
+
+    def check_spksc_dir(self):
+        check = os.path.exists(Config.get('spksrc_git_dir'))
+        check = check & os.path.isdir(Config.get('spksrc_git_dir'))
+        check = check & os.path.isdir(os.path.join(Config.get('spksrc_git_dir'), 'cross'))
+        check = check & os.path.isdir(os.path.join(Config.get('spksrc_git_dir'), 'native'))
+        check = check & os.path.isdir(os.path.join(Config.get('spksrc_git_dir'), 'spk'))
+        check = check & os.path.isdir(os.path.join(Config.get('spksrc_git_dir'), 'toolchains'))
+
+        return check
+
+    def prepare_spskrc_dir(self):
+        """ Prepare the spksrc directory
+        """
+
+        # Clone repo if not exists
+        if not os.path.exists(Config.get('spksrc_git_dir')):
+            _LOGGER.info("Clone repository: %s", Config.get('spksrc_git_uri'))
+            try:
+                git.Repo.clone_from(
+                    Config.get('spksrc_git_uri'), Config.get('spksrc_git_dir'))
+            except git.GitCommandError as exception:
+                _LOGGER.info("Error to clone git")
+
+
+    def checkout_branch_spskrc_dir(self):
+        """ Update the spksrc directory
+        """
+
+        # Clone repo if not exists
+        if not os.path.exists(Config.get('spksrc_git_dir')):
+            self.prepare_spskrc_dir()
+            return
+
+        repo = git.Repo(Config.get('spksrc_git_dir'))
+
+        # Checkout spksrc_git_branch branch
+        if Config.get('spksrc_git_branch') in repo.refs:
+            _LOGGER.info("Checkout %s", Config.get('spksrc_git_branch'))
+            repo.refs[Config.get('spksrc_git_branch')].checkout()
+
+
+    def update_spskrc_dir(self):
+        """ Update the spksrc directory
+        """
+
+        # Clone repo if not exists
+        if not os.path.exists(Config.get('spksrc_git_dir')):
+            self.prepare_spskrc_dir()
+            return
+
+        repo = git.Repo(Config.get('spksrc_git_dir'))
+
+        # Fetch and pull all remotes
+        _LOGGER.info("Fetch and pull git")
+        for remote in repo.remotes:
+            remote.fetch()
+            remote.pull()
+
+
+    def reset_spskrc_dir(self):
+        """ Update the spksrc directory
+        """
+
+        # Clone repo if not exists
+        if not os.path.exists(Config.get('spksrc_git_dir')):
+            self.prepare_spskrc_dir()
+            return
+
+        repo = git.Repo(Config.get('spksrc_git_dir'))
+
+        # Reset hard
+        _LOGGER.info("Reset hard")
+        repo.head.reset(index=True, working_tree=True)
 
     def _find_packages(self, path):
         """ Find all packages in a directory and return package name

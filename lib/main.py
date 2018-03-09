@@ -51,7 +51,7 @@ Parameters:
     -v --version                            Print version
     -d --debug=<level>                      Debug level: DEBUG, INFO, WARNING, ERROR, CRITICAL
     -w --work-dir=<directory>               Work directory (Default: {})
-    -r --root=<root>                        Root directory of spksrc
+    -r --root=<root>                        Root directory of spksrc (Default: {})
     -p --packages=<package,package>         Packages to check for update
     -j --jobs                               Number of jobs (Default: max CPU core)
     -o --option "<key>=<value>"             Set an option
@@ -71,24 +71,27 @@ Available options:
 Examples:
 
   - Search news version for ALL packages:
-        python spksrc-updater.py -r ../spksrc search
+        python spksrc-updater.py search
 
   - Search news version for only x265 package:
-        python spksrc-updater.py -r ../spksrc -p cross/x265 search
+        python spksrc-updater.py -p cross/x265 search
 
   - Launch build for the new release of ffmpeg:
-        python spksrc-updater.py -r ../spksrc -p cross/ffmpeg build
+        python spksrc-updater.py -p cross/ffmpeg build
 
   - Launch build for the new release of zlib and ffmpeg:
-        python spksrc-updater.py -r ../spksrc -p cross/zlib,cross/ffmpeg build
+        python spksrc-updater.py -p cross/zlib,cross/ffmpeg build
 
   - Launch build for the new major release of ffmpeg:
-        python spksrc-updater.py -r ../spksrc -p cross/ffmpeg --allow-major-release build
+        python spksrc-updater.py -p cross/ffmpeg --allow-major-release build
 
   - Launch build for the new release of ffmpeg and all its dependencies:
-        python spksrc-updater.py -r ../spksrc -p cross/ffmpeg --allow-prerelease build
+        python spksrc-updater.py -p cross/ffmpeg --allow-prerelease build
 
-""".format(Config.get_default('work_dir'), Config.get_default('cache_duration'), str_options))
+  - Search news version for ALL packages on a specify spksrc repository:
+        python spksrc-updater.py -r ../spksrc search
+
+""".format(Config.get_default('work_dir'), Config.get('spksrc_git_dir'), Config.get_default('cache_duration'), str_options))
 
     def read_args(self):
         try:
@@ -153,15 +156,7 @@ Examples:
         return args
 
     def check_spksc_dir(self):
-        check = os.path.exists(Config.get('spksrc_git_dir'))
-        check = check & os.path.isdir(Config.get('spksrc_git_dir'))
-        check = check & os.path.isdir(Config.get('spksrc_git_dir') + 'cross')
-        check = check & os.path.isdir(Config.get('spksrc_git_dir') + 'native')
-        check = check & os.path.isdir(Config.get('spksrc_git_dir') + 'spk')
-        check = check & os.path.isdir(
-            Config.get('spksrc_git_dir') + 'toolchains')
-
-        if not check:
+        if not self._spksrc_manager.check_spksc_dir():
             self.help()
             print("<root> have to be a root directory of spksrc")
             sys.exit(2)
@@ -169,7 +164,7 @@ Examples:
     def check_packages_list(self):
         if self._packages:
             for package in self._packages:
-                if not os.path.exists(Config.get('spksrc_git_dir') + package + os.path.sep + 'Makefile'):
+                if not os.path.exists(os.path.join(Config.get('spksrc_git_dir'), package, 'Makefile')):
                     self.help()
                     print("<package> " + package + " doesn't exist or it is not a valid spksrc package")
                     sys.exit(2)
@@ -227,11 +222,14 @@ Examples:
             print("<root> is required")
             sys.exit(2)
 
-        self.check_spksc_dir()
+        self._spksrc_manager = PackagesManager()
 
+        self._spksrc_manager.prepare_spskrc_dir()
+
+        self.check_spksc_dir()
         self.check_packages_list()
 
-        self._spksrc_manager = PackagesManager(self._packages)
+        self._spksrc_manager.initialize(self._packages)
 
         try:
             func = getattr(self, '_command_' + command)
