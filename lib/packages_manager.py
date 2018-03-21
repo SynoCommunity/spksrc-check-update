@@ -270,13 +270,40 @@ class PackagesManager(object):
 
             print("{:<30} {:<10} {:<30} {:<30}".format(package, new_version_state, self._packages[package]['informations']['version'], new_version))
 
-    def pprint_new_versions(self):
+    def pprint_all_new_versions(self):
         """ Print new versions on packages
         """
         for package in self._packages_requested:
             print("{} ({}):".format(package, self._packages[package]['informations']['version']))
             for (version, _) in self._packages[package]['informations']['versions'].items():
                 print(" - {}".format(version))
+
+    def pprint_unused(self):
+        """ Print unused package
+        """
+        def sublist_in_list(sublist, l):
+            return set(sublist) & set(l) == set(l)
+        unused_packages = []
+
+        def search_used_packages(package):
+            used_packages = []
+            if package in self._packages:
+                depends = self._packages[package]['informations']['all_depends']
+                used_packages += depends
+                for dep in set(depends):
+                    used_packages += search_used_packages(dep)
+            return used_packages
+
+        used_packages = []
+        for package in self._packages_spk:
+            depends = self._packages_spk[package]['informations']['all_depends']
+            used_packages += depends
+            for dep in set(depends):
+                used_packages += search_used_packages(dep)
+
+        unused_packages = sorted(self._packages.keys() - set(used_packages))
+        for package in unused_packages:
+            print(" - {}".format(package))
 
 
     def pprint_deps(self, package, depth=0):
@@ -286,7 +313,7 @@ class PackagesManager(object):
         depends = []
         if package in self._packages:
             depends += self._packages[package]['informations']['all_depends']
-        if package in  self._packages_spk:
+        if package in self._packages_spk:
             depends += self._packages_spk[package]['informations']['all_depends']
 
         for deps in set(depends):

@@ -44,6 +44,7 @@ Action:
   - build                                   Launch build for the new packages
   - print_deps                              Prints all dependancies
   - print_parent_deps                       Prints all parent dependancies
+  - print_unused                            Prints all packages not used by a SPK package or their deps
 
 Parameters:
   - Global:
@@ -169,13 +170,16 @@ Examples:
                     print("<package> " + package + " doesn't exist or it is not a valid spksrc package")
                     sys.exit(2)
 
+    def _command_help(self):
+        self.help()
+
     def _command_search(self):
         self._spksrc_manager.check_update_packages()
         self._spksrc_manager.pprint_next_version()
 
     def _command_search_all(self):
         self._spksrc_manager.check_update_packages()
-        self._spksrc_manager.pprint_new_versions()
+        self._spksrc_manager.pprint_all_new_versions()
 
     def _command_build(self):
         self._spksrc_manager.check_update_packages()
@@ -203,6 +207,10 @@ Examples:
 
         for package in self._packages:
             self._spksrc_manager.pprint_parent_deps(package)
+
+    def _command_print_unused(self):
+        print('Package unused:')
+        self._spksrc_manager.pprint_unused()
 
     def main(self):
         """
