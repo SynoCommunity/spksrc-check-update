@@ -166,7 +166,7 @@ class PackagesManager(object):
         self._packages = self._cache.load(cache_filename)
 
         if not self._packages:
-            packages = self._find_packages(Config.get('spksrc_git_dir') + 'cross') + self._find_packages(Config.get('spksrc_git_dir') + 'native')
+            packages = self._find_packages(os.path.join(Config.get('spksrc_git_dir'), 'cross')) + self._find_packages(os.path.join(Config.get('spksrc_git_dir'), 'native'))
 
             self._packages = {}
             for package in packages:
@@ -182,7 +182,7 @@ class PackagesManager(object):
         self._packages_spk = self._cache.load(cache_filename)
 
         if not self._packages_spk:
-            packages = self._find_packages(Config.get('spksrc_git_dir') + 'spk')
+            packages = self._find_packages(os.path.join(Config.get('spksrc_git_dir'), 'spk'))
 
             self._packages_spk = {}
             for package in packages:
