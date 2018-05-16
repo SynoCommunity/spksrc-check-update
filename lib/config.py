@@ -137,8 +137,6 @@ class Config:
         """ Get default property value
         """
         prop = configs.get(property_name)
-
-        prop = configs.get(property_name)
         if not prop:
             return default
 
